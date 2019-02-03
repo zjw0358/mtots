@@ -1,1 +1,3 @@
-Solutions to some USACO training pages
+Solutions to some USACO training problems
+
+

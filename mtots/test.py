@@ -25,9 +25,9 @@ def equal(a, b):
         raise AssertionError(f'Expected {a} to equal {b}')
 
 
-def that(x):
+def that(x, message='Assertion failed'):
     if not x:
-        raise AssertionError(f'Assertion failed')
+        raise AssertionError(message)
 
 
 def run_tests(pkg):
