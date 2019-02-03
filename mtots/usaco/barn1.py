@@ -34,7 +34,7 @@ if __name__ == '__main__':
     main(open)
 
 
-def _test():
+def _sample():
     _t({
 'barn1.in': """4 50 18
 3
@@ -106,6 +106,6 @@ class FakeFile:
 
 try:
     import mtots.test
-    mtots.test.case(_test)
+    mtots.test.case(_sample)
 except ImportError:
     pass
