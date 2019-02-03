@@ -1,12 +1,26 @@
 """
 ID: math4to3
-TASK:
+TASK: milk
 LANG: PYTHON3
 """
 
 
 def main(open):
-    pass
+    with open('milk.in') as f:
+        lines = iter(f.read().strip().splitlines())
+        N, M = map(int, next(lines).split())
+        suppliers = [tuple(map(int, next(lines).split())) for _ in range(M)]
+
+    suppliers.sort(reverse=True)
+    cost = 0
+    while N > 0:
+        P, A = suppliers.pop()
+        A = min(A, N)
+        N -= A
+        cost += P * A
+
+    with open('milk.out', 'w') as f:
+        f.write(f'{cost}\n')
 
 
 if __name__ == '__main__':
@@ -15,12 +29,18 @@ if __name__ == '__main__':
 
 def _test():
     _t({
-'': """
+'milk.in': """100 5
+5 20
+9 40
+3 10
+8 80
+6 30
 """
     }, {
-'': """
+'milk.out': """630
 """,
     })
+
 
 
 def _t(inputs, outputs):
