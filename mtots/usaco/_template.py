@@ -24,13 +24,3 @@ else:
 '': """
 """,
         })
-
-    @test.case
-    def _sample2():
-        _testutil.case(main, {
-'': """
-"""
-        }, {
-'': """
-""",
-        })
