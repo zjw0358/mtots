@@ -17,6 +17,9 @@ class FakeFile:
     def read(self):
         return ''.join(self.contents)
 
+    def __iter__(self):
+        return iter(self.read().splitlines())
+
 
 def case(main, inputs, outputs):
     from mtots import test
