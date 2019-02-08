@@ -1,2 +1,1 @@
-Utilities for parsing/analyzing/generating programming languages
-
+Utilities for parsing/analyzing/generating programming languages/text
