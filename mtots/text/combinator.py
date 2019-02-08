@@ -3,6 +3,7 @@
 from . import base
 from mtots import test
 from mtots.util.dataclasses import dataclass
+from typing import List, Tuple, Callable
 import abc
 import functools
 import math
@@ -71,16 +72,16 @@ class Failure(MatchResult):
         return type(self) is type(other) and self.message == other.message
 
 
-class Pattern(abc.ABC):
+class Parser(abc.ABC):
 
     @staticmethod
-    def ensure_pattern(s):
-        if isinstance(s, Pattern):
+    def ensure_parser(s):
+        if isinstance(s, Parser):
             return s
         elif isinstance(s, str):
             return Token(s)
         else:
-            assert False, f'{repr(s)} is not a pattern'
+            assert False, f'{repr(s)} is not a parser'
 
     def parse(self, tokens: typing.Iterable[base.Token]) -> MatchResult:
         return self.match(TokenStream(tokens))
@@ -90,10 +91,10 @@ class Pattern(abc.ABC):
         pass
 
     def allmap(self, f):
-        """Creates a new pattern that mutates the MatchResult with the
+        """Creates a new parser that mutates the MatchResult with the
         given callback
         """
-        return AllMap(self, f)
+        return AllMap(self, [f])
 
     def xmap(self, f):
         """'Cross' map
@@ -138,7 +139,7 @@ class Pattern(abc.ABC):
 
 
 @dataclass
-class Token(Pattern):
+class Token(Parser):
     type: str
 
     def match(self, stream):
@@ -155,41 +156,41 @@ class Token(Pattern):
         return repr(self.type)
 
 
-class CompoundPattern(Pattern):
+class CompoundParser(Parser):
     def __str__(self):
-        return f'{type(self).__name__}({", ".join(map(str, self.patterns))})'
+        return f'{type(self).__name__}({", ".join(map(str, self.parsers))})'
 
 
-class Any(CompoundPattern):
-    def __init__(self, *patterns):
-        _patterns = []
-        for pattern in patterns:
-            if isinstance(pattern, Any):
-                _patterns.extend(pattern.patterns)
+class Any(CompoundParser):
+    def __init__(self, *parsers):
+        _parsers = []
+        for parser in parsers:
+            if isinstance(parser, Any):
+                _parsers.extend(parser.parsers)
             else:
-                _patterns.append(Pattern.ensure_pattern(pattern))
-        self.patterns = tuple(_patterns)
+                _parsers.append(Parser.ensure_parser(parser))
+        self.parsers = tuple(_parsers)
 
     def match(self, stream):
         mark = stream.peek.mark
-        result = Failure(mark, 'Zero pattern Any')
-        for pattern in self.patterns:
-            result = pattern.match(stream)
+        result = Failure(mark, 'Zero parser Any')
+        for parser in self.parsers:
+            result = parser.match(stream)
             if result:
                 return result
         return result
 
 
-class All(CompoundPattern):
-    def __init__(self, *patterns):
-        self.patterns = tuple(map(Pattern.ensure_pattern, patterns))
+class All(CompoundParser):
+    def __init__(self, *parsers):
+        self.parsers = tuple(map(Parser.ensure_parser, parsers))
 
     def match(self, stream):
         state = stream.state
         mark = stream.peek.mark
         values = []
-        for pattern in self.patterns:
-            result = pattern.match(stream)
+        for parser in self.parsers:
+            result = parser.match(stream)
             if result:
                 values.append(result.value)
             else:
@@ -198,64 +199,216 @@ class All(CompoundPattern):
         return Success(mark, values)
 
 
-@dataclass
-class AllMap(Pattern):
-    pattern: Pattern
-    f: typing.Callable[[MatchResult], MatchResult]
-
-    def match(self, stream):
-        mark = stream.peek.mark
-        result = self.pattern.match(stream)
-        new_result = self.f(result)
-        if not isinstance(new_result, MatchResult):
+def _apply_callbacks(mark, result, callbacks):
+    for f in callbacks:
+        result = f(result)
+        if not isinstance(result, MatchResult):
             raise Error(
                 [mark],
                 f'AllMap callback returned '
-                f'non-MatchResult {repr(new_result)}')
-        return new_result
-
-    def __str__(self):
-        return f'AllMap({self.pattern}, {self.f.__name__})'
+                f'non-MatchResult {repr(result)}')
+    return result
 
 
 @dataclass
-class Forward(Pattern):
-    name: str
-    pattern: typing.Optional[Pattern] = None
+class AllMap(Parser):
+    parser: Parser
+    callbacks: typing.List[typing.Callable[[MatchResult], MatchResult]]
+
+    def __init__(self, parser, callbacks):
+        if isinstance(parser, AllMap):
+            self.parser = parser.parser
+            self.callbacks = parser.callbacks + list(callbacks)
+        else:
+            self.parser = parser
+            self.callbacks = callbacks
 
     def match(self, stream):
-        if self.pattern is None:
+        mark = stream.peek.mark
+        result = self.parser.match(stream)
+        return _apply_callbacks(mark, result, self.callbacks)
+
+    def __str__(self):
+        return (
+            f'AllMap({self.parser}, '
+            f'{", ".join(f.__name__ for f in self.callbacks)})'
+        )
+
+
+@dataclass
+class Forward(Parser):
+    name: str
+
+    @property
+    def parser(self):
+        return self._parser
+
+    @parser.setter
+    def parser(self, parser):
+        self._parser = _handle_direct_left_recursion(self, parser)
+
+    def match(self, stream):
+        if self.parser is None:
             raise base.Error(
                 [stream.peek.mark],
-                f'Forward pattern {self.name} used before being set',
+                f'Forward parser {self.name} used before being set',
             )
 
-        return self.pattern.match(stream)
+        return self.parser.match(stream)
 
     def __str__(self):
         return f'{self.name}'
 
 
+def _handle_direct_left_recursion(fwd: Forward, parser):
+    """
+    We consider cases that look like
+
+    A.parser = (
+        All(A, B, C) |
+        All(A, C) |
+        All(x, Y) |
+        x
+    )
+
+    A.parser = AllMap(Any([
+        AllMap(All(A, ...), ...), ...
+        AllMap(All(...), ...), ...
+    ], ...)
+
+    where 'A' is the fwd argument and 'A.parser' is the parser argument
+
+    """
+    original_parser = parser
+    if isinstance(parser, AllMap):
+        outer_callbacks = parser.callbacks
+        parser = parser.parser
+    else:
+        outer_callbacks = ()
+
+    if not isinstance(parser, Any):
+        return original_parser
+
+    alternatives = parser.parsers
+    base_parsers: List[Parser] = []
+    recurse_pairs: List[Tuple[
+        Tuple[Parser, ...],
+        Tuple[Callable[[TokenStream, MatchResult], MatchResult], ...]
+    ]] = []
+
+    for alternative in alternatives:
+        if isinstance(alternative, AllMap):
+            alt_callbacks = alternative.callbacks
+            subparser = alternative.parser
+        else:
+            alt_callbacks = ()
+            subparser = alternative
+
+        if isinstance(subparser, All) and subparser.parsers[:1] == (fwd, ):
+            if len(subparser.parsers) == 1:
+                raise Error(
+                    (),
+                    f'Problematic reduction {fwd} -> {fwd}',
+                )
+            recurse_pairs.append((subparser.parsers[1:], alt_callbacks))
+        else:
+            base_parsers.append(alternative)
+
+    if recurse_pairs:
+        if not base_parsers:
+            raise base.Error(
+                [],
+                f'non-terminal left recursion ({fwd.name})',
+            )
+        return _DirectLeftRecursive(
+            f'{fwd.name}.left_recursive({parser})',
+            Any(*base_parsers),
+            outer_callbacks,
+            tuple(recurse_pairs),
+        )
+    else:
+        # If there's no left recursion, there's no need to
+        # return anything different
+        return original_parser
+
+
 @dataclass
-class Repeat(Pattern):
-    pattern: Pattern
+class _DirectLeftRecursive(Parser):
+    name: str
+    base_parser: Parser
+    outer_callbacks: List[Callable[[MatchResult], MatchResult]]
+    recurse_pairs: List[Tuple[
+        Tuple[Parser, ...],
+        Tuple[Callable[[MatchResult], MatchResult], ...]
+    ]]
+
+    def match(self, stream):
+        mark = stream.peek.mark
+        result = self.base_parser.match(stream)
+        result = _apply_callbacks(mark, result, self.outer_callbacks)
+
+        # WARNING: Pardon the spahgetti code...
+        while result:
+            state = stream.state
+            mark = stream.peek.mark
+            for postfix_parsers, alt_callbacks in self.recurse_pairs:
+                subvalues = [result.value]
+                failed = False
+                for postfix_parser in postfix_parsers:
+                    subresult = postfix_parser.match(stream)
+                    if not subresult:
+                        failed = True
+                        break
+                    subvalues.append(subresult.value)
+                else:
+                    # In this case, we've matched all the postfix parsers
+                    # successfully.
+                    # Now we want to apply the callbacks for succeeding.
+                    new_result = _apply_callbacks(
+                        mark,
+                        Success(mark, subvalues),
+                        alt_callbacks + self.outer_callbacks,
+                    )
+                    # The mappers could've caused the match to fail.
+                    # If it didn't fail though, we can break
+                    if new_result:
+                        result = new_result
+                        break
+                # In this case, this set of postfix parsers and callbacks
+                # could not complete successfullyself.
+                # Rewind for a fresh next round.
+                stream.state = state
+            else:
+                # If we tried all the recurse pairs, and we couldn't
+                # find anything, there's no reason to be in this
+                # while loop anymore.
+                break
+        return result
+
+    def __str__(self):
+        return self.name
+
+
+@dataclass
+class Repeat(Parser):
+    parser: Parser
     min: int
     max: int
 
     def match(self, stream):
         mark = stream.peek.mark
         state = stream.state
-        pattern = self.pattern
+        parser = self.parser
         values = []
         for _ in range(self.min):
-            result = pattern.match(stream)
+            result = parser.match(stream)
             if result:
                 values.append(result.value)
             else:
                 stream.state = state
                 return result
         for _ in range(self.min, self.max):
-            result = pattern.match(stream)
+            result = parser.match(stream)
             if result:
                 values.append(result.value)
             else:
@@ -263,38 +416,43 @@ class Repeat(Pattern):
         return Success(mark, values)
 
     def __str__(self):
-        return f'Repeat({self.pattern}, {self.min}, {self.max})'
+        return f'Repeat({self.parser}, {self.min}, {self.max})'
+
+
+@base.Lexer.new
+def test_lexer(lexer):
+    @lexer.add('\s+')
+    def spaces(m, mark):
+        return ()
+
+    @lexer.add('\w+')
+    def name(m, mark):
+        return [base.Token(mark, 'NAME', m.group())]
+
+    @lexer.add('\+')
+    def open_paren(m, mark):
+        return [base.Token(mark, '+', m.group())]
+
+    @lexer.add('\(')
+    def open_paren(m, mark):
+        return [base.Token(mark, '(', m.group())]
+
+    @lexer.add('\)')
+    def close_paren(m, mark):
+        return [base.Token(mark, ')', m.group())]
 
 
 @test.case
 def test_sample_parser():
-    @base.Lexer.new
-    def lexer(lexer):
-        @lexer.add('\s+')
-        def spaces(m, mark):
-            return ()
-
-        @lexer.add('\w+')
-        def name(m, mark):
-            return [base.Token(mark, 'NAME', m.group())]
-
-        @lexer.add('\(')
-        def open_paren(m, mark):
-            return [base.Token(mark, '(', m.group())]
-
-        @lexer.add('\)')
-        def close_paren(m, mark):
-            return [base.Token(mark, ')', m.group())]
-
     sexpr = Forward('sexpr')
     atom = Any('NAME')
     expr = atom | sexpr
     prog = All(expr.repeat(), 'EOF').map(lambda args: args[0])
 
-    sexpr.pattern = All('(', expr.repeat(), ')').map(lambda args: args[1])
+    sexpr.parser = All('(', expr.repeat(), ')').map(lambda args: args[1])
 
     def parse(text):
-        return prog.parse(lexer.lex_string(text))
+        return prog.parse(test_lexer.lex_string(text))
 
     test.equal(
         parse("""
@@ -305,4 +463,25 @@ def test_sample_parser():
         """),
         Success(None, [['1'], ['begin', ['a', 'b', 'c']]])
     )
+
+
+@test.case
+def test_left_recursive_grammar():
+    atom = Any('NAME')
+    addexpr = Forward('addexpr')
+    expr = addexpr
+
+    addexpr.parser = Any(
+        All(addexpr, '+', atom),
+        atom,
+    )
+
+    def parse(text):
+        return expr.parse(test_lexer.lex_string(text))
+
+    test.equal(
+        parse("1 + 2 + 3"),
+        Success(None, [['1', '+', '2'], '+', '3']),
+    )
+
 
