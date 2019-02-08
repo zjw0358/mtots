@@ -106,29 +106,13 @@ class TextStream:
         return self.i >= len(self.source.data)
 
 
-class TokenStream:
-    def __init__(self, tokens: typing.Iterator[Token]):
-        self.tokens = tokens
-        self.peek = next(tokens)
-        self._stopiter = None
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self._stopiter is not None:
-            raise self._stopiter
-
-        token = self.peek
-        try:
-            self.peek = next(self.tokens)
-        except StopIteration as e:
-            self._stopiter = e
-
-        return token
-
-
 class Lexer:
+    @staticmethod
+    def new(f):
+        lexer = Lexer()
+        f(lexer)
+        return lexer
+
     def __init__(self):
         self.patterns = []
 
@@ -156,14 +140,11 @@ class Lexer:
 
         raise Error([Mark(source, i, i)], 'Unrecognized token')
 
-    def _lex(self, source):
+    def lex(self, source):
         stream = TextStream(source, 0)
         while not stream.eof():
             yield from self.extract(stream)
         yield Token(Mark(source, stream.i, stream.i), 'EOF', None)
-
-    def lex(self, source):
-        return TokenStream(self._lex(source))
 
     def lex_string(self, s):
         return self.lex(Source.from_string(s))
