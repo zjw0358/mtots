@@ -30,6 +30,18 @@ def that(x, message='Assertion failed'):
         raise AssertionError(message)
 
 
+def throws(exc_type, message=None):
+    def wrapper(f):
+        try:
+            f()
+        except exc_type as e:
+            if message is not None:
+                actual_message = str(e)
+        else:
+            raise AssertionError(f'Expected {exc_type} to be thrown')
+        equal(message, actual_message)
+    return wrapper
+
 def run_tests(pkg):
     all_tests_count = 0
     failed_tests_count = 0
