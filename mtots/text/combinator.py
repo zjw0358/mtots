@@ -367,7 +367,7 @@ class _DirectLeftRecursive(Parser):
                     new_result = _apply_callbacks(
                         mark,
                         Success(mark, subvalues),
-                        alt_callbacks + self.outer_callbacks,
+                        tuple(alt_callbacks) + self.outer_callbacks,
                     )
                     # The mappers could've caused the match to fail.
                     # If it didn't fail though, we can break
@@ -425,13 +425,17 @@ def test_lexer(lexer):
     def spaces(m, mark):
         return ()
 
+    @lexer.add('\d+(\.\d*)?')
+    def number(m, mark):
+        return [base.Token(mark, 'NUMBER', float(m.group()))]
+
     @lexer.add('\w+')
     def name(m, mark):
         return [base.Token(mark, 'NAME', m.group())]
 
-    @lexer.add('\+')
+    @lexer.add('\+|\-|\*|\/|\%')
     def open_paren(m, mark):
-        return [base.Token(mark, '+', m.group())]
+        return [base.Token(mark, m.group(), m.group())]
 
     @lexer.add('\(')
     def open_paren(m, mark):
@@ -445,7 +449,7 @@ def test_lexer(lexer):
 @test.case
 def test_sample_parser():
     sexpr = Forward('sexpr')
-    atom = Any('NAME')
+    atom = Any('NAME', 'NUMBER')
     expr = atom | sexpr
     prog = All(expr.repeat(), 'EOF').map(lambda args: args[0])
 
@@ -461,13 +465,13 @@ def test_sample_parser():
                 (a b c)
             )
         """),
-        Success(None, [['1'], ['begin', ['a', 'b', 'c']]])
+        Success(None, [[1], ['begin', ['a', 'b', 'c']]])
     )
 
 
 @test.case
 def test_left_recursive_grammar():
-    atom = Any('NAME')
+    atom = Any('NAME', 'NUMBER')
     addexpr = Forward('addexpr')
     expr = addexpr
 
@@ -481,7 +485,39 @@ def test_left_recursive_grammar():
 
     test.equal(
         parse("1 + 2 + 3"),
-        Success(None, [['1', '+', '2'], '+', '3']),
+        Success(None, [[1, '+', 2], '+', 3]),
     )
 
+
+@test.case
+def test_simple_arithmetic_grammar():
+    expr = Forward('expr')
+    atom = Any('NUMBER', All('(', expr, ')').map(lambda args: args[1]))
+    mulexpr = Forward('mulexpr')
+    mulexpr.parser = (
+        All(mulexpr, '*', atom).map(lambda args: args[0] * args[2]) |
+        All(mulexpr, '/', atom).map(lambda args: args[0] / args[2]) |
+        All(mulexpr, '%', atom).map(lambda args: args[0] % args[2]) |
+        atom
+    )
+    addexpr = Forward('addexpr')
+    addexpr.parser = (
+        All(addexpr, '+', mulexpr).map(lambda args: args[0] + args[2]) |
+        All(addexpr, '-', mulexpr).map(lambda args: args[0] - args[2]) |
+        mulexpr
+    )
+    expr.parser = addexpr
+
+    def parse(text):
+        return expr.parse(test_lexer.lex_string(text))
+
+    test.equal(
+        parse('1 + 2 - 7 * 2'),
+        Success(None, 1 + 2 - 7 * 2),
+    )
+
+    test.equal(
+        parse('1 + (2 - 7) * 2'),
+        Success(None, 1 + (2 - 7) * 2),
+    )
 
