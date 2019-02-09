@@ -187,15 +187,21 @@ class All(CompoundParser):
 
     def match(self, stream):
         state = stream.state
-        mark = stream.peek.mark
+        start_mark = stream.peek.mark
         values = []
         for parser in self.parsers:
             result = parser.match(stream)
             if result:
                 values.append(result.value)
+                last_mark = result.mark
             else:
                 stream.state = state
                 return result
+        mark = base.Mark(
+            start_mark.source,
+            start_mark.start,
+            last_mark.end,
+        )
         return Success(mark, values)
 
 
@@ -343,14 +349,14 @@ class _DirectLeftRecursive(Parser):
     ]]
 
     def match(self, stream):
-        mark = stream.peek.mark
+        start_mark = stream.peek.mark
         result = self.base_parser.match(stream)
-        result = _apply_callbacks(mark, result, self.outer_callbacks)
+        result = _apply_callbacks(result.mark, result, self.outer_callbacks)
 
         # WARNING: Pardon the spahgetti code...
         while result:
             state = stream.state
-            mark = stream.peek.mark
+            middle_mark = stream.peek.mark
             for postfix_parsers, alt_callbacks in self.recurse_pairs:
                 subvalues = [result.value]
                 failed = False
@@ -360,13 +366,20 @@ class _DirectLeftRecursive(Parser):
                         failed = True
                         break
                     subvalues.append(subresult.value)
+                    end_mark = subresult.mark
                 else:
                     # In this case, we've matched all the postfix parsers
                     # successfully.
                     # Now we want to apply the callbacks for succeeding.
+                    result_mark = base.Mark(
+                        start_mark.source,
+                        start_mark.start,
+                        end_mark.end,
+                        middle_mark.start,
+                    )
                     new_result = _apply_callbacks(
-                        mark,
-                        Success(mark, subvalues),
+                        result_mark,
+                        Success(result_mark, subvalues),
                         tuple(alt_callbacks) + self.outer_callbacks,
                     )
                     # The mappers could've caused the match to fail.

@@ -17,10 +17,11 @@ class Mark(typing.NamedTuple):
     source: Source
     start: int
     end: int
+    main: typing.Optional[int] = None
 
     @property
     def i(self) -> int:
-        return self.start
+        return self.start if self.main is None else self.main
 
     @property
     def lineno(self) -> int:
