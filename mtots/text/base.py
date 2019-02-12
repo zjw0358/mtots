@@ -1,7 +1,10 @@
-from mtots.util.dataclasses import dataclass
-import typing
-import re
 from mtots import test
+from mtots.util.dataclasses import dataclass
+import argparse
+import json
+import re
+import sys
+import typing
 
 
 class Source(typing.NamedTuple):
@@ -152,6 +155,35 @@ class Lexer:
 
     def lex_string(self, s):
         return self.lex(Source.from_string(s))
+
+    def main(self):
+        """Some functionality for if a lexer module
+        is used as a main module.
+        """
+        parser = argparse.ArgumentParser()
+        parser.add_argument('path', nargs='?')
+        args = parser.parse_args()
+
+        opened_file = bool(args.path)
+        file = open(args.path) if args.path else sys.stdin
+        try:
+            path = args.path or '<stdin>'
+            contents = file.read()
+            source = Source(path, contents)
+            for token in self.lex(source):
+                print(json.dumps({
+                    'type': token.type,
+                    'value': token.value,
+                    'mark': {
+                        'start': token.mark.start,
+                        'end': token.mark.end,
+                        'main': token.mark.main,
+                    },
+                }))
+
+        finally:
+            if opened_file:
+                file.close()
 
 
 @test.case

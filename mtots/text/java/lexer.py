@@ -1,3 +1,10 @@
+"""Java lexer, mostly faithful to Java SE 11 spec
+
+https://docs.oracle.com/javase/specs/jls/se11/html/jls-3.html
+
+Some additional syntax for float literal and int literal
+not yet done, are marked with TODO.
+"""
 from mtots import test
 from mtots.text import base
 import re
@@ -159,6 +166,10 @@ def lex_string(s: str):
 
 def lex(source: base.Source):
     return lexer.lex(source)
+
+
+if __name__ == '__main__':
+    lexer.main()
 
 
 @test.case
