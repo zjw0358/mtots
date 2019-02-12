@@ -123,7 +123,10 @@ class Lexer:
 
     def add(self, regex):
         def wrapper(callback):
-            self.add_pattern(Pattern(re.compile(regex), callback))
+            self.add_pattern(Pattern(
+                re.compile(regex, re.MULTILINE | re.DOTALL),
+                callback,
+            ))
             return callback
         return wrapper
 
