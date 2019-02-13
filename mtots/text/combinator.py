@@ -243,15 +243,18 @@ class AllMap(Parser):
 
 @dataclass
 class Forward(Parser):
-    name: str
+    parser_factory: Callable[[], Parser]
+    name: str = '<Forward>'
+    _parser = None
 
     @property
     def parser(self):
+        if self._parser is None:
+            self._parser = _handle_direct_left_recursion(
+                self,
+                self.parser_factory(),
+            )
         return self._parser
-
-    @parser.setter
-    def parser(self, parser):
-        self._parser = _handle_direct_left_recursion(self, parser)
 
     def match(self, stream):
         if self.parser is None:
@@ -461,12 +464,15 @@ def test_lexer(lexer):
 
 @test.case
 def test_sample_parser():
-    sexpr = Forward('sexpr')
+    sexpr = Forward(
+        name='sexpr',
+        parser_factory=(
+            lambda: All('(', expr.repeat(), ')').map(lambda args: args[1])
+        ),
+    )
     atom = Any('NAME', 'NUMBER')
     expr = atom | sexpr
     prog = All(expr.repeat(), 'EOF').map(lambda args: args[0])
-
-    sexpr.parser = All('(', expr.repeat(), ')').map(lambda args: args[1])
 
     def parse(text):
         return prog.parse(test_lexer.lex_string(text))
@@ -485,13 +491,11 @@ def test_sample_parser():
 @test.case
 def test_left_recursive_grammar():
     atom = Any('NAME', 'NUMBER')
-    addexpr = Forward('addexpr')
-    expr = addexpr
-
-    addexpr.parser = Any(
+    addexpr = Forward(name='addexpr', parser_factory=lambda: Any(
         All(addexpr, '+', atom),
         atom,
-    )
+    ))
+    expr = addexpr
 
     def parse(text):
         return expr.parse(test_lexer.lex_string(text))
@@ -504,22 +508,19 @@ def test_left_recursive_grammar():
 
 @test.case
 def test_simple_arithmetic_grammar():
-    expr = Forward('expr')
+    expr = Forward(name='expr', parser_factory=lambda: addexpr)
     atom = Any('NUMBER', All('(', expr, ')').map(lambda args: args[1]))
-    mulexpr = Forward('mulexpr')
-    mulexpr.parser = (
+    mulexpr = Forward(name='mulexpr', parser_factory=lambda: (
         All(mulexpr, '*', atom).map(lambda args: args[0] * args[2]) |
         All(mulexpr, '/', atom).map(lambda args: args[0] / args[2]) |
         All(mulexpr, '%', atom).map(lambda args: args[0] % args[2]) |
         atom
-    )
-    addexpr = Forward('addexpr')
-    addexpr.parser = (
+    ))
+    addexpr = Forward(name='addexpr', parser_factory=lambda: (
         All(addexpr, '+', mulexpr).map(lambda args: args[0] + args[2]) |
         All(addexpr, '-', mulexpr).map(lambda args: args[0] - args[2]) |
         mulexpr
-    )
-    expr.parser = addexpr
+    ))
 
     def parse(text):
         return expr.parse(test_lexer.lex_string(text))
