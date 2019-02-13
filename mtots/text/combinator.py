@@ -3,18 +3,21 @@
 from . import base
 from mtots import test
 from mtots.util.dataclasses import dataclass
-from typing import List, Tuple, Callable
+from typing import Callable
+from typing import Iterable
+from typing import Iterator
+from typing import List
+from typing import Tuple
 import abc
 import functools
 import math
-import typing
 
 
 _INF = 1 << 62  # Effectively infinite integer
 
 
 class TokenStream:
-    def __init__(self, tokens: typing.Iterator[base.Token]):
+    def __init__(self, tokens: Iterator[base.Token]):
         self.tokens = list(tokens)
         self.i = 0
 
@@ -83,7 +86,7 @@ class Parser(abc.ABC):
         else:
             assert False, f'{repr(s)} is not a parser'
 
-    def parse(self, tokens: typing.Iterable[base.Token]) -> MatchResult:
+    def parse(self, tokens: Iterable[base.Token]) -> MatchResult:
         return self.match(TokenStream(tokens))
 
     @abc.abstractmethod
@@ -95,6 +98,21 @@ class Parser(abc.ABC):
         given callback
         """
         return AllMap(self, [f])
+
+    def fatmap(self, f):
+        """Fat map
+        Like a reverse flatmap: feeds Success object as input to f,
+        and expects f to return a value to add to new Success object.
+        """
+
+        @functools.wraps(f)
+        def g(match_result):
+            if match_result:
+                return Success(match_result.mark, f(match_result))
+            else:
+                return match_result
+
+        return self.allmap(g)
 
     def xmap(self, f):
         """'Cross' map
@@ -134,6 +152,9 @@ class Parser(abc.ABC):
     def repeat(self, min=0, max=_INF):
         return Repeat(self, min, max)
 
+    def optional(self):
+        return self.repeat(0, 1)
+
     def __or__(self, other):
         return Any(self, other)
 
@@ -154,6 +175,25 @@ class Token(Parser):
 
     def __str__(self):
         return repr(self.type)
+
+
+class AnyTokenBut(Parser):
+    """Accept any one token except those explicitly listed."""
+    def __init__(self, *types):
+        self.types = tuple(set(sorted(types)))
+
+    def match(self, stream):
+        mark = stream.peek.mark
+        if stream.peek.type not in self.types:
+            return Success(mark, next(stream).value)
+        else:
+            return Failure(
+                mark,
+                f'Expected {self.type} but got {stream.peek.type}',
+            )
+
+    def __str__(self):
+        return f'AnyTokenBut({", ".join(map(repr, self.types))})'
 
 
 class CompoundParser(Parser):
@@ -219,7 +259,7 @@ def _apply_callbacks(mark, result, callbacks):
 @dataclass
 class AllMap(Parser):
     parser: Parser
-    callbacks: typing.List[typing.Callable[[MatchResult], MatchResult]]
+    callbacks: List[Callable[[MatchResult], MatchResult]]
 
     def __init__(self, parser, callbacks):
         if isinstance(parser, AllMap):

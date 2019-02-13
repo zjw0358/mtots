@@ -57,11 +57,21 @@ class Mark(typing.NamedTuple):
         spaces = ' ' * (colno - 1)
         return f'on line {lineno}\n{line}\n{spaces}*\n'
 
+    def __repr__(self):
+        return f'Mark({self.start}, {self.end}, {self.main})'
+
 
 class Token(typing.NamedTuple):
     mark: typing.Optional[Mark]
     type: str
-    value: object
+    explicit_value: object
+
+    @property
+    def value(self):
+        if self.explicit_value is None:
+            return self.type
+        else:
+            return self.explicit_value
 
     def __repr__(self):
         return f'Token({repr(self.type)}, {repr(self.value)})'
@@ -70,7 +80,7 @@ class Token(typing.NamedTuple):
         return (
             isinstance(other, Token) and
             self.type == other.type and
-            self.value == other.value
+            self.explicit_value == other.explicit_value
         )
 
 
