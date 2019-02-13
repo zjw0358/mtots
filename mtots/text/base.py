@@ -121,34 +121,47 @@ class TextStream:
 
 
 class Lexer:
+
+    class Builder:
+        def __init__(self):
+            self.patterns = []
+            self.adapters = []
+
+        def add_pattern(self, pattern):
+            self.patterns.append(pattern)
+            return pattern
+
+        def add(self, regex):
+            def wrapper(callback):
+                self.add_pattern(Pattern(
+                    re.compile(regex, re.MULTILINE | re.DOTALL),
+                    callback,
+                ))
+                return callback
+            return wrapper
+
+        def add_adapter(self, adapter):
+            self.adapters.append(adapter)
+
+        def build(self):
+            return Lexer(patterns=self.patterns, adapters=self.adapters)
+
     @staticmethod
     def new(f):
-        lexer = Lexer()
-        f(lexer)
-        return lexer
+        builder = Lexer.Builder()
+        f(builder)
+        return builder.build()
 
-    def __init__(self):
-        self.patterns = []
+    def __init__(self, patterns, adapters):
+        self._patterns = tuple(patterns)
+        self._adapters = tuple(adapters)
 
-    def add_pattern(self, pattern):
-        self.patterns.append(pattern)
-        return pattern
-
-    def add(self, regex):
-        def wrapper(callback):
-            self.add_pattern(Pattern(
-                re.compile(regex, re.MULTILINE | re.DOTALL),
-                callback,
-            ))
-            return callback
-        return wrapper
-
-    def extract(self, stream):
+    def _extract(self, stream):
         i = stream.i
         source = stream.source
         data = source.data
 
-        for pattern in self.patterns:
+        for pattern in self._patterns:
             m = pattern.regex.match(data, i)
             if m:
                 mark = Mark(source, m.start(), m.end())
@@ -157,11 +170,17 @@ class Lexer:
 
         raise Error([Mark(source, i, i)], 'Unrecognized token')
 
-    def lex(self, source):
+    def _lex_without_adapters(self, source):
         stream = TextStream(source, 0)
         while not stream.eof():
-            yield from self.extract(stream)
+            yield from self._extract(stream)
         yield Token(Mark(source, stream.i, stream.i), 'EOF', None)
+
+    def lex(self, source):
+        token_gen = self._lex_without_adapters(source)
+        for adapter in self._adapters:
+            token_gen = adapter(token_gen)
+        return token_gen
 
     def lex_string(self, s):
         return self.lex(Source.from_string(s))
@@ -198,15 +217,17 @@ class Lexer:
 
 @test.case
 def test_sample_lexer():
-    lexer = Lexer()
+    builder = Lexer.Builder()
 
-    @lexer.add('\s+')
+    @builder.add('\s+')
     def spaces(m, mark):
         return ()
 
-    @lexer.add('\w+')
+    @builder.add('\w+')
     def name(m, mark):
         return [Token(mark, 'NAME', m.group())]
+
+    lexer = builder.build()
 
     test.equal(
         list(lexer.lex_string('a b cc')),
@@ -225,3 +246,40 @@ on line 1
 """)
     def lex_invalid_token():
         list(lexer.lex_string('&'))
+
+
+@test.case
+def test_lexer_with_adapter():
+
+    @Lexer.new
+    def lexer(builder):
+        @builder.add('\s+')
+        def spaces(m, mark):
+            return ()
+
+        @builder.add('\w+')
+        def name(m, mark):
+            return [Token(mark, 'NAME', m.group())]
+
+        @builder.add_adapter
+        def double_every_name_token(tokens):
+            for token in tokens:
+                if token.type == 'NAME':
+                    yield token
+                    yield token
+                else:
+                    yield token
+
+    test.equal(
+        list(lexer.lex_string('a b cc')),
+        [
+            Token(None, 'NAME', 'a'),
+            Token(None, 'NAME', 'a'),
+            Token(None, 'NAME', 'b'),
+            Token(None, 'NAME', 'b'),
+            Token(None, 'NAME', 'cc'),
+            Token(None, 'NAME', 'cc'),
+            Token(None, 'EOF', None),
+        ]
+    )
+
