@@ -74,7 +74,7 @@ class Token(typing.NamedTuple):
             return self.explicit_value
 
     def __repr__(self):
-        return f'Token({repr(self.type)}, {repr(self.value)})'
+        return f'Token({repr(self.type)}, {repr(self.explicit_value)})'
 
     def __eq__(self, other):
         return (
