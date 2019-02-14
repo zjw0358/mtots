@@ -238,3 +238,21 @@ def foo(
             base.Token(None, 'EOF', None),
         ],
     )
+
+
+@test.case
+def test_eof_dedents():
+    test.equal(
+        list(lex_string(r"""
+foo
+    bar""")),
+        [
+            base.Token(None, 'NEWLINE', None),
+            base.Token(None, 'ID', 'foo'),
+            base.Token(None, 'NEWLINE', None),
+            base.Token(None, 'INDENT', None),
+            base.Token(None, 'ID', 'bar'),
+            base.Token(None, 'DEDENT', None),
+            base.Token(None, 'EOF', None),
+        ],
+    )
