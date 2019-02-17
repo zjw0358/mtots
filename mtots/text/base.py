@@ -1,5 +1,7 @@
 from mtots import test
 from mtots.util.dataclasses import dataclass
+from typing import Iterator
+from typing import Tuple
 import argparse
 import json
 import re
@@ -213,6 +215,160 @@ class Lexer:
         finally:
             if opened_file:
                 file.close()
+
+
+class TokenStream:
+    def __init__(self, tokens: Iterator[Token]):
+        self.tokens = list(tokens)
+        self.i = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.i < len(self.tokens):
+            token = self.peek
+            self.i += 1
+            return token
+        else:
+            raise StopIteration
+
+    @property
+    def peek(self):
+        return self.tokens[self.i]
+
+    @property
+    def state(self):
+        return self.i
+
+    @state.setter
+    def state(self, value):
+        self.i = value
+
+
+@dataclass
+class MatchResult:
+    mark: Mark
+
+
+@dataclass
+class Success(MatchResult):
+    value: object
+
+    def __str__(self):
+        return f'Success({self.value})'
+
+    def __eq__(self, other):
+        return type(self) is type(other) and self.value == other.value
+
+
+@dataclass
+class Failure(MatchResult):
+    message: str
+
+    def __bool__(self):
+        return False
+
+    def __str__(self):
+        return f'Failure({repr(self.message)})'
+
+    def __eq__(self, other):
+        return type(self) is type(other) and self.message == other.message
+
+
+class Parser:
+    """Helper base class for anyone implementing their own hand-written
+    recursive descent parser.
+    """
+
+    class Builder:
+        def __init__(self):
+            self.rule_map = {}
+
+        def add_rule(self, f):
+            self.rule_map[f.__name__] = f
+
+        def build(self):
+            return Parser(rule_map=rule_map)
+
+    class Context:
+        def __init__(self, parser, stream):
+            self.parser = parser
+            self.stream = stream
+            self._cache = {}
+
+        def match(self, rule_name):
+            key = (self.stream.state, rule_name)
+            if key not in self._cache:
+                result = self.parser.rule_map[rule_name](self)
+                new_state = self.state
+                assert isinstance(result, MatchResult), result
+                self._cache[key] = (result, state)
+            result, new_state = self._cache[key]
+            self.state = new_state
+            return result
+
+        @property
+        def state(self):
+            return self.stream.state
+
+        @state.setter
+        def state(self, new_state):
+            self.stream.state = new_state
+
+        @property
+        def peek(self):
+            return self.stream.peek
+
+        @property
+        def mark(self):
+            return self.peek.mark
+
+        def gettok(self):
+            return next(self.stream)
+
+        def at(self, token_type):
+            return self.peek.type == token_type
+
+        def consume(self, token_type):
+            if self.at(token_type):
+                return self.gettok()
+
+        def expect(self, token_type):
+            token = self.consume(token_type)
+            if token is None:
+                raise Error(
+                    [self.mark],
+                    f'Expected {token_type} but got {self.peek.type}',
+                )
+            return token
+
+    @staticmethod
+    def new(f):
+        builder = Parser.Builder()
+        f(builder)
+        return builder.build()
+
+    def __init__(self, *, rule_map):
+        self.rule_map = rule_map
+
+    def match(self, rule_name, tokens, *, all=True):
+        stream = TokenStream(tokens)
+        ctx = Context(parser=self, token_stream=stream)
+        result = ctx.match(rule_name)
+        if all:
+            if not ctx.at('EOF'):
+                raise Error(
+                    [ctx.mark],
+                    f'Expected EOF but got {ctx.peek.type}',
+                )
+        return result
+
+    def parse(self, rule_name, tokens, *, all=True):
+        result = self.amtch(rule_name, tokens, all=all)
+        if not result:
+            raise Error([result.mark], result.message)
+        return result.value
 
 
 @test.case

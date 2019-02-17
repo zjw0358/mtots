@@ -1,11 +1,14 @@
 """Parser combinator
 """
 from . import base
+from .base import Failure
+from .base import MatchResult
+from .base import Success
+from .base import TokenStream
 from mtots import test
 from mtots.util.dataclasses import dataclass
 from typing import Callable
 from typing import Iterable
-from typing import Iterator
 from typing import List
 from typing import Tuple
 import abc
@@ -14,65 +17,6 @@ import math
 
 
 _INF = 1 << 62  # Effectively infinite integer
-
-
-class TokenStream:
-    def __init__(self, tokens: Iterator[base.Token]):
-        self.tokens = list(tokens)
-        self.i = 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.i < len(self.tokens):
-            token = self.peek
-            self.i += 1
-            return token
-        else:
-            raise StopIteration
-
-    @property
-    def peek(self):
-        return self.tokens[self.i]
-
-    @property
-    def state(self):
-        return self.i
-
-    @state.setter
-    def state(self, value):
-        self.i = value
-
-
-@dataclass
-class MatchResult:
-    mark: base.Mark
-
-
-@dataclass
-class Success(MatchResult):
-    value: object
-
-    def __str__(self):
-        return f'Success({self.value})'
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.value == other.value
-
-
-@dataclass
-class Failure(MatchResult):
-    message: str
-
-    def __bool__(self):
-        return False
-
-    def __str__(self):
-        return f'Failure({repr(self.message)})'
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.message == other.message
 
 
 class Parser(abc.ABC):
