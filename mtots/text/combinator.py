@@ -1,4 +1,18 @@
-"""Parser combinator
+"""Parser combinator (DEPRECATED)
+
+I still don't want to delete this, because there are some interesting
+ideas here (e.g. support for direct left recursion).
+
+However, in practice, using this library can be difficult to debug
+because Python stack traces for complex grammars are basically useless
+for debugging the grammars themselves.
+
+If support for debugging grammars with some sort of stack trace is
+ever added, this may become genuinely useful. Actually, for really simple
+grammars, what is here is already fairly useful.
+
+For now, the class mtots.text.base.Parser for making
+hand-written recursive descent parsers is recommended.
 """
 from . import base
 from .base import Failure
