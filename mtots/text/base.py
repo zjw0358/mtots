@@ -356,12 +356,11 @@ class Parser:
         stream = TokenStream(tokens)
         ctx = Context(parser=self, token_stream=stream)
         result = ctx.match(rule_name)
-        if all:
-            if not ctx.at('EOF'):
-                raise Error(
-                    [ctx.mark],
-                    f'Expected EOF but got {ctx.peek.type}',
-                )
+        if all and not ctx.at('EOF'):
+            raise Error(
+                [ctx.mark],
+                f'Expected EOF but got {ctx.peek.type}',
+            )
         return result
 
     def parse(self, rule_name, tokens, *, all=True):
