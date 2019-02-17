@@ -12,6 +12,7 @@ import re
 
 KEYWORDS = {
     'true', 'false',
+    'trait',
 
     # Reserved
     'null', 'nil',

@@ -149,6 +149,13 @@ class Parser(abc.ABC):
 
         return self.xmap(g)
 
+    def flatten(self):
+
+        def flatten(seq_of_seq):
+            return [x for seq in seq_of_seq for x in seq]
+
+        return self.map(flatten)
+
     def repeat(self, min=0, max=_INF):
         return Repeat(self, min, max)
 
@@ -177,23 +184,46 @@ class Token(Parser):
         return repr(self.type)
 
 
-class AnyTokenBut(Parser):
-    """Accept any one token except those explicitly listed."""
-    def __init__(self, *types):
-        self.types = tuple(set(sorted(types)))
+@dataclass
+class Peek(Parser):
+    """Try to parse with another parser, but unconditionally rewind
+    regardless of success
+    """
+    def __init__(self, parser):
+        self.parser = Parser.ensure_parser(parser)
 
     def match(self, stream):
         mark = stream.peek.mark
-        if stream.peek.type not in self.types:
-            return Success(mark, next(stream).value)
-        else:
-            return Failure(
-                mark,
-                f'Expected {self.type} but got {stream.peek.type}',
-            )
+        state = stream.state
+        result = self.parser.match(stream)
+        stream.state = state
+        return result
 
     def __str__(self):
-        return f'AnyTokenBut({", ".join(map(repr, self.types))})'
+        return repr(self.type)
+
+
+class AnyTokenNotAt(Parser):
+    """Accept any one token if the given parser does not match there"""
+    def __init__(self, parser):
+        self.parser = Parser.ensure_parser(parser)
+
+    def match(self, stream):
+        state = stream.state
+        mark = stream.peek.mark
+        result = self.parser.match(stream)
+        stream.state = state
+        if result:
+            return Failure(
+                mark,
+                f'Expected any token not matching {self.parser}',
+            )
+        else:
+            return Success(mark, next(stream).value)
+
+
+def AnyTokenBut(*types):
+    return AnyTokenNotAt(Any(*types))
 
 
 class CompoundParser(Parser):
