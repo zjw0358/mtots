@@ -44,16 +44,22 @@ def throws(exc_type, message=None):
 
 def run_tests(pkg):
     all_tests_count = 0
-    failed_tests_count = 0
+    all_modules_count = 0
     passed_tests_count = 0
     module_names = module_finder.find(pkg)
-    failing_modules = []
+    failed_tests = []
+    failed_imports = []
     for module_name in module_names:
-        importlib.import_module(module_name)
-    for module_name in module_names:
+        all_modules_count += 1
         tests = _tests_table[module_name]
         sys.stdout.write(f'testing {module_name}...')
-        has_failing_test = False
+        try:
+            importlib.import_module(module_name)
+        except BaseException as e:
+            sys.stdout.write(f' IMPORT FAILED\n')
+            traceback.print_exc()
+            failed_imports.append(module_name)
+            continue
         if tests:
             sys.stdout.write('\n')
             for test in tests:
@@ -66,23 +72,38 @@ def run_tests(pkg):
                 except BaseException as e:
                     traceback.print_exc()
                     sys.stdout.write(f'FAIL\n')
-                    failed_tests_count += 1
-                    has_failing_test = True
+                    failed_tests.append(f'{module_name}.{test.__name__}')
         else:
             sys.stdout.write(f' no tests\n')
-        if has_failing_test:
-            failing_modules.append(module_name)
+    failed_tests_count = len(failed_tests)
     assert passed_tests_count + failed_tests_count == all_tests_count, (
         passed_tests_count,
         failed_tests_count,
         all_tests_count,
     )
-    if failed_tests_count == 0:
-        print(f'All tests pass! (of {all_tests_count})')
-        return 0
-    else:
-        print(f'{failed_tests_count} failed of {all_tests_count}')
+    assert all_modules_count == len(module_names), (
+        all_modules_count,
+        len(module_names),
+    )
+    passed_imports_count = all_modules_count - len(failed_imports)
+    print(f'{passed_imports_count}/{all_modules_count} imports succeeded')
+    print(f'{passed_tests_count}/{all_tests_count} tests passed')
+    if failed_tests or failed_imports:
+        if failed_imports:
+            print(
+                f'The following {len(failed_imports)} modules '
+                f'could not be imported'
+            )
+            for module_name in failed_imports:
+                print(f'  {module_name}')
+        if failed_tests:
+            print(f'The following {len(failed_tests)} tests failed')
+            for test_name in failed_tests:
+                print(f'  {test_name}')
         return 1
+    else:
+        print('All tests pass!')
+        return 0
 
 
 def main():
