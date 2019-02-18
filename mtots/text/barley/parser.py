@@ -203,7 +203,7 @@ def _parse(s):
 
 @test.case
 def test_simple_case():
-    print(_parse("""
+    node = _parse("""
 import io
 
 struct Foo native
@@ -219,4 +219,6 @@ int foo(int a) native
 
 int main()
     pass
-"""))
+""")
+
+    # print(node)
