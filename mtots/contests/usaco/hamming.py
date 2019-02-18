@@ -90,7 +90,7 @@ else:
 """,
         })
 
-    @test.case
+    @test.slow
     def _perf_test_1():
         _testutil.case(main, {
 'hamming.in': """64 8 1
@@ -106,7 +106,7 @@ else:
 """,
         })
 
-    @test.case
+    @test.slow
     def _perf_test_2():
         _testutil.case(main, {
 'hamming.in': """64 8 7
@@ -115,7 +115,7 @@ else:
 'hamming.out': """NO SOLUTION
 """,})
 
-    @test.case
+    @test.slow
     def _perf_test_3():
         # If this was actually required, this would be
         # too slow (seems to go a bit over 2 seconds on my machine).

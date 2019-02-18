@@ -187,6 +187,6 @@ class FakeFile:
 try:
     import mtots.test
     mtots.test.case(_sample)
-    mtots.test.case(_another_test)
+    mtots.test.slow(_another_test)
 except ImportError:
     pass
