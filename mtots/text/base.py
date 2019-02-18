@@ -355,21 +355,24 @@ class Parser:
     def __init__(self, *, rule_map):
         self.rule_map = rule_map
 
-    def match(self, rule_name, tokens, *, all=True):
+    def parse(
+            self,
+            rule_name,
+            tokens,
+            *,
+            rule_args=(),
+            rule_kwargs=None,
+            all=True):
+        if rule_kwargs is None:
+            rule_kwargs = {}
         stream = TokenStream(tokens)
         ctx = Parser.Context(parser=self, stream=stream)
-        result = self.rule_map[rule_name](ctx)
+        result = self.rule_map[rule_name](ctx, *rule_args, **rule_kwargs)
         if all and not ctx.at('EOF'):
             raise Error(
                 [ctx.mark],
                 f'Expected EOF but got {ctx.peek.type}',
             )
-        return result
-
-    def parse(self, rule_name, tokens, *, all=True):
-        result = self.match(rule_name, tokens, all=all)
-        if not result:
-            raise Error([result.mark], result.message)
         return result
 
 

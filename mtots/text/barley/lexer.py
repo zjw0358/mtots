@@ -12,10 +12,11 @@ import re
 
 KEYWORDS = {
     'true', 'false',
-    'trait',
+    'trait', 'class', 'struct',
+    'string', 'tuple',
 
     # Reserved
-    'null', 'nil',
+    'null', 'nil', 'var',
 
     # Java keywords
     'abstract', 'continue', 'for', 'new', 'switch',

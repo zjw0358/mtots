@@ -1,40 +1,62 @@
 from mtots.text import base
 from mtots.util.dataclasses import dataclass
-from typing import List
-from typing import Optional
+import typing
 
 
 Node = base.Node
 
 
+class TypeReference:
+    pass
+
+
 @dataclass
-class Module(Node):
+class SimpleType(TypeReference):
     name: str
-    definitions: List['Definition']
+
+
+@dataclass
+class ListType(TypeReference):
+    base: TypeReference
+
+
+@dataclass
+class StructType(TypeReference):
+    name: str
+
+@dataclass
+class TupleType(TypeReference):
+    subtypes: typing.List[TypeReference]
+
+
+@dataclass
+class FunctionType(TypeReference):
+    return_type: TypeReference
+    parameter_types: typing.List[TypeReference]
 
 
 @dataclass
 class Definition(Node):
     module_name: str
+    native: bool
     short_name: str
 
     @property
     def qualified_name(self):
-        return f'{self.module_name}.{self.short_name}'
+        return f'{self.module_name}#{self.short_name}'
 
 
 @dataclass
-class FunctionDefinition(Definition):
-    type_params: Optional[List['TypeParameter']]
-    params: List['Parameter']
-    return_type: 'TypeReference'
-    body: 'Block'
-
-
-@dataclass
-class TypeReference(Node):
+class Import(Node):
     name: str
-    args: Optional[List['TypeReference']]
+    alias: str
+
+
+@dataclass
+class Module(Node):
+    name: str
+    imports: typing.List[Import]
+    definitions: typing.List[Definition]
 
 
 class Statement(Node):
@@ -43,7 +65,31 @@ class Statement(Node):
 
 @dataclass
 class Block(Statement):
-    stmts: List[Statement]
+    statements: typing.List[Statement]
+
+
+@dataclass
+class Field(Node):
+    type: TypeReference
+    name: str
+
+
+@dataclass
+class Struct(Definition):
+    fields: typing.Optional[typing.List[Field]]
+
+
+@dataclass
+class Parameter(Node):
+    type: TypeReference
+    name: str
+
+
+@dataclass
+class FunctionDefinition(Definition):
+    parameters: typing.List[Parameter]
+    return_type: TypeReference
+    body: typing.Optional[Block]
 
 
 class Expression(Node):
