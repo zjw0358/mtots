@@ -1,14 +1,15 @@
 """
 Utility for testing code in mtots
 """
+from . import module_finder
 import argparse
 import collections
 import importlib
-import traceback
 import inspect
 import os
 import sys
-from . import module_finder
+import time
+import traceback
 
 
 _tests_table = collections.defaultdict(lambda: [])
@@ -49,12 +50,19 @@ def run_tests(pkg):
     module_names = module_finder.find(pkg)
     failed_tests = []
     failed_imports = []
+    all_tests_start_time = time.time()
     for module_name in module_names:
         all_modules_count += 1
         tests = _tests_table[module_name]
         sys.stdout.write(f'testing {module_name}...')
         try:
+            import_start_time = time.time()
             importlib.import_module(module_name)
+            import_end_time = time.time()
+            import_duration = import_end_time - import_start_time
+            sys.stdout.write(
+                f' (import: {format(import_duration, ".2f")}s)',
+            )
         except BaseException as e:
             sys.stdout.write(f' IMPORT FAILED\n')
             traceback.print_exc()
@@ -66,8 +74,13 @@ def run_tests(pkg):
                 sys.stdout.write(f'  {test.__name__} ')
                 all_tests_count += 1
                 try:
+                    test_start_time = time.time()
                     test()
-                    sys.stdout.write(f'PASS\n')
+                    test_end_time = time.time()
+                    test_duration = test_end_time - test_start_time
+                    sys.stdout.write(
+                        f'PASS ({format(test_duration, ".2f")}s)\n',
+                    )
                     passed_tests_count += 1
                 except BaseException as e:
                     traceback.print_exc()
@@ -86,6 +99,9 @@ def run_tests(pkg):
         len(module_names),
     )
     passed_imports_count = all_modules_count - len(failed_imports)
+    all_tests_end_time = time.time()
+    all_tests_duration = all_tests_end_time - all_tests_start_time
+    print(f'All tests took {format(all_tests_duration, ".2f")}s')
     print(f'{passed_imports_count}/{all_modules_count} imports succeeded')
     print(f'{passed_tests_count}/{all_tests_count} tests passed')
     if failed_tests or failed_imports:
