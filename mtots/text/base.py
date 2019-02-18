@@ -300,13 +300,7 @@ class Parser:
 
         def add_rule(self, f):
             self.rule_map[f.__name__] = f
-            # We purposely return None here,
-            # so that we don't accidentally call the rule
-            # directly.
-            # We want to use ctx.consume('rule_name') rather
-            # than just rule_name(ctx), because 'consume' will
-            # cache the result.
-            return None
+            return f
 
         def build(self):
             return Parser(rule_map=self.rule_map)
@@ -315,23 +309,6 @@ class Parser:
         def __init__(self, parser, stream):
             self.parser = parser
             self.stream = stream
-            self._cache = {}
-
-        def _match(self, rule_name):
-            key = (self.stream.state, rule_name)
-            if key not in self._cache:
-                result = self.parser.rule_map[rule_name](self)
-                new_state = self.state
-                if not isinstance(result, MatchResult):
-                    raise TypeError(
-                        'Parser rules should return MatchResults '
-                        f'but rule {rule_name} returned a value of '
-                        f'type {type(result)} ({repr(result)})'
-                    )
-                self._cache[key] = (result, new_state)
-            result, new_state = self._cache[key]
-            self.state = new_state
-            return result
 
         @property
         def state(self):
@@ -352,51 +329,22 @@ class Parser:
         def gettok(self):
             return next(self.stream)
 
-        def _nonterminal(self, rule_name):
-            return rule_name in self.parser.rule_map
+        def at(self, token_type):
+            return self.peek.type == token_type
 
-        def at(self, rule_name):
-            """Returns True if the given rule matches at
-            the current position in the token stream.
-            """
-            if self._nonterminal(rule_name):
-                return bool(self._match(rule_name))
-            else:
-                return self.peek.type == rule_name
+        def consume(self, token_type):
+            if self.peek.type == token_type:
+                return self.gettok()
 
-        def consume(self, rule_name) -> MatchResult:
-            """Try to match rule_name and returns a MatchResult
-            This is like the 'match' method, except that it also handles
-            terminals.
-            """
-            if self._nonterminal(rule_name):
-                return self._match(rule_name)
-            elif self.peek.type == rule_name:
-                token = self.gettok()
-                return Success(token.mark, token.value)
+        def expect(self, token_type):
+            token = self.consume(token_type)
+            if token:
+                return token
             else:
-                return Failure(
-                    self.mark,
-                    f'Expected {rule_name} but got {self.peek.type}',
+                raise Error(
+                    [self.mark],
+                    f'Expected {token_type} but got {self.peek.type}',
                 )
-
-        def expect(self, rule_name):
-            """if rule_name matches,
-                returns the value of the successful match,
-                otherwise, throws the failure as an error
-            """
-            return self.expect_match(rule_name).value
-
-        def expect_match(self, rule_name):
-            """if rule_name matches,
-                returns Success,
-                otherwise, throws the failure as an error
-            """
-            match_result = self.consume(rule_name)
-            if match_result:
-                return match_result
-            else:
-                raise match_result.to_error()
 
     @staticmethod
     def new(f):
@@ -410,7 +358,7 @@ class Parser:
     def match(self, rule_name, tokens, *, all=True):
         stream = TokenStream(tokens)
         ctx = Parser.Context(parser=self, stream=stream)
-        result = ctx.consume(rule_name)
+        result = self.rule_map[rule_name](ctx)
         if all and not ctx.at('EOF'):
             raise Error(
                 [ctx.mark],
@@ -422,7 +370,7 @@ class Parser:
         result = self.match(rule_name, tokens, all=all)
         if not result:
             raise Error([result.mark], result.message)
-        return result.value
+        return result
 
 
 @test.case
@@ -515,50 +463,43 @@ def test_sample_parser():
     def parser(builder):
         @builder.add_rule
         def expr(ctx):
-            return ctx.consume('add_expr')
+            return add_expr(ctx)
 
-        @builder.add_rule
         def atom_expr(ctx):
-            mark = ctx.mark
-
-            int_result = ctx.consume('INT')
-            if int_result:
-                return int_result
+            int_token = ctx.consume('INT')
+            if int_token:
+                return int_token.value
 
             if ctx.consume('('):
-                match_result = ctx.expect_match('expr')
+                result = expr(ctx)
                 ctx.expect(')')
-                return match_result
+                return result
 
-            return Failure(mark, 'Expected expression')
+            raise Error([mark], 'Expected expression')
 
-        @builder.add_rule
         def mul_expr(ctx):
-            mark = ctx.mark
-            lhs = ctx.expect('atom_expr')
+            lhs = atom_expr(ctx)
             while True:
                 if ctx.consume('*'):
-                    lhs *= ctx.expect('atom_expr')
+                    lhs *= atom_expr(ctx)
                 elif ctx.consume('/'):
-                    lhs /= ctx.expect('atom_expr')
+                    lhs /= atom_expr(ctx)
                 elif ctx.consume('%'):
-                    lhs %= ctx.expect('atom_expr')
+                    lhs %= atom_expr(ctx)
                 else:
                     break
-            return Success(mark, lhs)
+            return lhs
 
-        @builder.add_rule
         def add_expr(ctx):
-            mark = ctx.mark
-            lhs = ctx.expect('mul_expr')
+            lhs = mul_expr(ctx)
             while True:
                 if ctx.consume('+'):
-                    lhs += ctx.expect('mul_expr')
+                    lhs += mul_expr(ctx)
                 elif ctx.consume('-'):
-                    lhs -= ctx.expect('mul_expr')
+                    lhs -= mul_expr(ctx)
                 else:
                     break
-            return Success(mark, lhs)
+            return lhs
 
     def parse(s):
         return parser.parse('expr', lexer.lex_string(s))
