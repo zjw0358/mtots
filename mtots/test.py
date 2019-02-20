@@ -48,7 +48,8 @@ def throws(exc_type, message=None):
                 actual_message = str(e)
         else:
             raise AssertionError(f'Expected {exc_type} to be thrown')
-        equal(message, actual_message)
+        if message is not None:
+            equal(message, actual_message)
     return wrapper
 
 def run_tests(pkg, run_slow_tests=False):
