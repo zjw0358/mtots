@@ -8,6 +8,7 @@ from mtots.text.combinator import Any
 from mtots.text.combinator import AnyTokenBut
 from mtots.text.combinator import Forward
 from mtots.text.combinator import Peek
+from mtots.text.combinator import Token
 
 # Useful for skipping blocks of code
 # for the header parser
@@ -17,8 +18,26 @@ blob = Forward(lambda: Any(
 ))
 
 
-modifier = Any(
+# These are modifiers that affect the type of a function
+# i.e. does the type of the function pointer need to know
+# this about the function it's pointinng to?
+func_decl_modifier = Any(
+    # Windows calling conventions
+    Token('ID', '__cdecl'),
+    Token('ID', '__clrcall'),
+    Token('ID', '__stdcall'),
+    Token('ID', '__fastcall'),
+    Token('ID', '__thiscall'),
+    Token('ID', '__vectorcall'),
+)
+
+# These are modifiers that affect the definition of a function
+# e.g. if a function is declared static, the function definition
+# must handle it accordingly, but a pointer to that function does
+# not need to know.
+func_defn_modifier = Any(
     'static',
+    func_decl_modifier,
 )
 
 
@@ -31,7 +50,7 @@ type_ref = Forward(lambda: Any(
             All(',', '...').optional(),                # 2: vararg
         ')',                                           # 3
         Any(
-            All('[', modifier.repeat(), ']')
+            All('[', func_decl_modifier.repeat(), ']')
                 .map(lambda args: args[1]),
             All(),
         ),                                             # 4: attributes
@@ -131,11 +150,11 @@ def test_type_ref():
         ))
     )
     test.equal(
-        parse('(int)[static]double'),
+        parse('(int)[__cdecl]double'),
         base.Success(None, types.FunctionType(
             ptypes=[types.INT],
             varargs=False,
-            attrs=['static'],
+            attrs=['__cdecl'],
             rtype=types.DOUBLE,
         ))
     )
