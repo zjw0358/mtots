@@ -156,7 +156,7 @@ CXX_KEYWORDS = {
 }
 
 KEYWORDS = {
-    'def', 'var', 'import',
+    'def', 'var', 'import', 'native',
 
     # reserved
     'class', 'trait', 'new', 'delete', 'bool',

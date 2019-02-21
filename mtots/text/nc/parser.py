@@ -90,6 +90,28 @@ struct_decl = All(
     name=m.value[1],
 ))
 
+struct_field = All(
+    'ID', type_ref, ';',
+).fatmap(lambda m: ast.Field(
+    mark=m.mark,
+    name=m.value[0],
+    type=m.value[1],
+))
+
+struct_defn = All(
+    'struct',                                # 0
+    'ID',                                    # 1: name
+    Any('native').optional().map(bool),      # 2: native
+    '{',                                     # 3
+    struct_field.repeat(),                   # 4: fields
+    '}',                                     # 5
+).fatmap(lambda m: ast.StructDefinition(
+    mark=m.mark,
+    name=m.value[1],
+    native=m.value[2],
+    fields=m.value[4],
+))
+
 
 @test.case
 def test_blob():
@@ -189,5 +211,68 @@ def test_struct_decl():
     test.equal(
         parse('struct Foo'),
         base.Failure(None, 'Expected ; but got EOF'),
+    )
+
+
+@test.case
+def test_struct_defn():
+    def parse(s):
+        return (
+            All(struct_defn, Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    test.equal(
+        parse("""
+        struct Foo {
+            b Bar;
+            x *int;
+        }
+        """),
+        base.Success(None, ast.StructDefinition(
+            mark=None,
+            name='Foo',
+            native=False,
+            fields=[
+                ast.Field(
+                    mark=None,
+                    name='b',
+                    type=types.NamedType('Bar'),
+                ),
+                ast.Field(
+                    mark=None,
+                    name='x',
+                    type=types.PointerType(types.INT),
+                ),
+            ],
+        )),
+    )
+
+
+    test.equal(
+        parse("""
+        struct Foo native {
+            b Bar;
+            x *int;
+        }
+        """),
+        base.Success(None, ast.StructDefinition(
+            mark=None,
+            name='Foo',
+            native=True,
+            fields=[
+                ast.Field(
+                    mark=None,
+                    name='b',
+                    type=types.NamedType('Bar'),
+                ),
+                ast.Field(
+                    mark=None,
+                    name='x',
+                    type=types.PointerType(types.INT),
+                ),
+            ],
+        )),
     )
 
