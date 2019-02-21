@@ -49,6 +49,20 @@ class GlobalDeclaration(Declaration):
     pass
 
 
+@util.dataclass
+class Header(Node):
+    "All the information needed to generate a C header"
+    imports: typing.List[BaseImport]
+    decls: typing.List[GlobalDeclaration]
+
+
+@util.dataclass
+class Source(Node):
+    "Like Header, but FunctionDefinitions are properly parsed"
+    imports: typing.List[BaseImport]
+    decls: typing.List[GlobalDeclaration]
+
+
 class Definition(Declaration):
     pass
 

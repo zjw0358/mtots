@@ -13,9 +13,11 @@ from mtots.text.combinator import Token
 # Useful for skipping blocks of code
 # for the header parser
 blob = Forward(lambda: Any(
-    All('{', blob.repeat(), '}'),
+    brace_blob,
     AnyTokenBut('{', '}'),
 ))
+
+brace_blob = All('{', blob.repeat(), '}')
 
 # These are modifiers that affect the type of a function
 # i.e. does the type of the function pointer need to know
@@ -193,6 +195,22 @@ func_proto = All(
 
 func_decl = All(func_proto, ';').map(lambda args: args[0])
 
+# Header parser,
+# Skips over function bodies, but doesn't need any external context
+# to parse a file.
+header = All(
+    import_stmt.repeat(),
+    Any(
+        struct_decl,
+        struct_defn,
+        func_decl,
+        All(func_proto, brace_blob).map(lambda args: args[0]),
+    ).repeat(),
+).fatmap(lambda m: ast.Header(
+    mark=m.mark,
+    imports=m.value[0],
+    decls=m.value[1],
+))
 
 @test.case
 def test_blob():
@@ -446,6 +464,42 @@ def test_func_decl():
                 varargs=True,
                 attrs=[],
                 rtype=types.VOID,
+            ),
+        ),
+    )
+
+
+@test.case
+def test_header():
+    def parse(s):
+        return (
+            All(header, Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    test.equal(
+        parse("""
+        import <stdio.h>
+
+        def main() int {
+            print("Hello world!");
+        }
+        """),
+        base.Success(
+            None,
+            ast.Header(
+                None,
+                imports=[ast.AngleBracketImport(None, path='stdio.h')],
+                decls=[
+                    ast.FunctionDeclaration(
+                        None,
+                        name='main',
+                        params=[],
+                        varargs=False,
+                        attrs=[],
+                        rtype=types.NamedType(name='int')),
+                ],
             ),
         ),
     )
