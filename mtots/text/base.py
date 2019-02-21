@@ -1,4 +1,5 @@
 from mtots import test
+from mtots.util import dataclasses
 from mtots.util.dataclasses import dataclass
 from typing import Iterator
 from typing import Tuple
@@ -105,7 +106,10 @@ class Error(Exception):
 
 @dataclass
 class Node:
-    mark: typing.Optional[Mark]
+    mark: typing.Optional[Mark] = dataclasses.field(
+        compare=False,
+        repr=False,
+    )
 
 
 class Pattern(typing.NamedTuple):
@@ -258,18 +262,12 @@ class TokenStream:
 
 @dataclass
 class MatchResult:
-    mark: Mark
+    mark: Mark = dataclasses.field(compare=False, repr=False)
 
 
 @dataclass
 class Success(MatchResult):
     value: object
-
-    def __str__(self):
-        return f'Success({self.value})'
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.value == other.value
 
 
 @dataclass
@@ -278,12 +276,6 @@ class Failure(MatchResult):
 
     def __bool__(self):
         return False
-
-    def __str__(self):
-        return f'Failure({repr(self.message)})'
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.message == other.message
 
     def to_error(self):
         return Error([self.mark], self.message)

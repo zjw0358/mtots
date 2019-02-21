@@ -2,10 +2,12 @@ from mtots import test
 
 try:
     from dataclasses import dataclass
+    from dataclasses import field
 except ImportError:
     # If we're not on Python 3.7+, see
     # if we can use the 3.6 backport
     from mtots.tp.dataclasses.main import dataclass
+    from mtots.tp.dataclasses.main import field
 
 
 @test.case
