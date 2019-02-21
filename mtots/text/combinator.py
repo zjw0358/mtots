@@ -181,7 +181,7 @@ class AnyTokenNotAt(Parser):
 
 
 def AnyTokenBut(*types):
-    return AnyTokenNotAt(Any(*types))
+    return AnyTokenNotAt(Any('EOF', *types))
 
 
 class CompoundParser(Parser):
