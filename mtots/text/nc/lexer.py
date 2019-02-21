@@ -3,13 +3,11 @@ from mtots.text import base
 import re
 
 
-KEYWORDS = {
-    'def', 'var', 'import',
+class Error(base.Error):
+    pass
 
-    # reserved
-    'class', 'trait', 'new', 'delete',
 
-    # C keywords
+C_KEYWORDS = {
     'auto',
     'break',
     'case',
@@ -56,6 +54,114 @@ KEYWORDS = {
     '_Thread_local', # (since C11)
 }
 
+CXX_KEYWORDS = {
+    'alignas',  # (since C++11)
+    'alignof',  # (since C++11)
+    'and',
+    'and_eq',
+    'asm',
+    'atomic_cancel',  # (TM TS)
+    'atomic_commit',  # (TM TS)
+    'atomic_noexcept',  # (TM TS)
+    'auto',  # (1)
+    'bitand',
+    'bitor',
+    'bool',
+    'break',
+    'case',
+    'catch',
+    'char',
+    'char8_t',  # (since C++20)
+    'char16_t',  # (since C++11)
+    'char32_t',  # (since C++11)
+    'class',  # (1)
+    'compl',
+    'concept',  # (since C++20)
+    'const',
+    'consteval',  # (since C++20)
+    'constexpr',  # (since C++11)
+    'const_cast',
+    'continue',
+    'co_await',  # (coroutines TS)
+    'co_return',  # (coroutines TS)
+    'co_yield',  # (coroutines TS)
+    'decltype',  # (since C++11)
+    'default',  # (1)
+    'delete',  # (1)
+    'do',
+    'double',
+    'dynamic_cast',
+    'else',
+    'enum',
+    'explicit',
+    'export',  # (1)
+    'extern',  # (1)
+    'false',
+    'float',
+    'for',
+    'friend',
+    'goto',
+    'if',
+    'import',  # (modules TS)
+    'inline',  # (1)
+    'int',
+    'long',
+    'module',  # (modules TS)
+    'mutable',  # (1)
+    'namespace',
+    'new',
+    'noexcept',  # (since C++11)
+    'not',
+    'not_eq',
+    'nullptr',  # (since C++11)
+    'operator',
+    'or',
+    'or_eq',
+    'private',
+    'protected',
+    'public',
+    'reflexpr',  # (reflection TS)
+    'register',  # (2)
+    'reinterpret_cast',
+    'requires',  # (since C++20)
+    'return',
+    'short',
+    'signed',
+    'sizeof',  # (1)
+    'static',
+    'static_assert',  # (since C++11)
+    'static_cast',
+    'struct',  # (1)
+    'switch',
+    'synchronized',  # (TM TS)
+    'template',
+    'this',
+    'thread_local',  # (since C++11)
+    'throw',
+    'true',
+    'try',
+    'typedef',
+    'typeid',
+    'typename',
+    'union',
+    'unsigned',
+    'using',  # (1)
+    'virtual',
+    'void',
+    'volatile',
+    'wchar_t',
+    'while',
+    'xor',
+    'xor_eq',
+}
+
+KEYWORDS = {
+    'def', 'var', 'import',
+
+    # reserved
+    'class', 'trait', 'new', 'delete', 'bool',
+} | C_KEYWORDS | CXX_KEYWORDS
+
 SYMBOLS = {
     '//',
 
@@ -101,6 +207,18 @@ def lexer(lexer):
         else:
             return [base.Token(mark, 'ID', name)]
 
+    @lexer.add(r'`\w+`')
+    def escaped_id(m, mark):
+        # Allow user to specify valid C identifiers as identifiers.
+        name = m.group()[1:-1]
+        if name in C_KEYWORDS:
+            raise Error(
+                [mark],
+                'C keywords cannot be used as identifiers even '
+                f'if they are escaped ({name})',
+            )
+        return [base.Token(mark, 'ID', name)]
+
     @lexer.add(r'(?:\d*\.\d+|\d+\.)(?:f|F|d|D)?')
     def float_literal(m, mark):
         text = m.group()
@@ -134,7 +252,7 @@ def lexer(lexer):
         while i < len(s):
             if s[i] == '\\':
                 if i + 1 >= len(s):
-                    raise base.Error([mark], f'Incomplete escape')
+                    raise Error([mark], f'Incomplete escape')
                 if s[i + 1].isdigit():
                     j = i + 1
                     while j < len(s) and s[j].isdigit():
@@ -145,7 +263,7 @@ def lexer(lexer):
                     parts.append(_ESCAPE_MAP[s[i + 1]])
                     i += 2
                 else:
-                    raise base.Error([mark], f'Invalid escape {s[i + 1]}')
+                    raise Error([mark], f'Invalid escape {s[i + 1]}')
             else:
                 j = i + 1
                 while j < len(s) and s[j] != '\\':
@@ -166,7 +284,7 @@ def lexer(lexer):
 
     @lexer.add(r"'(?:" + escape_seq + r"|[^\r\n'])*'")
     def invalid_char_literal(m, mark):
-        raise base.Error([mark], 'Multi-character char literal')
+        raise Error([mark], 'Multi-character char literal')
 
     symbols_regex = '|'.join(
         re.escape(symbol)
@@ -199,6 +317,27 @@ def test_id():
             base.Token(None, 'EOF', None),
         ]
     )
+
+
+@test.case
+def test_id():
+    test.equal(
+        list(lex_string('`hi`')),
+        [
+            base.Token(None, 'ID', 'hi'),
+            base.Token(None, 'EOF', None),
+        ]
+    )
+    test.equal(
+        list(lex_string('`class`')),
+        [
+            base.Token(None, 'ID', 'class'),
+            base.Token(None, 'EOF', None),
+        ]
+    )
+    @test.throws(Error)
+    def on_c_keyword():
+        list(lex_string('`struct`'))
 
 
 @test.case
