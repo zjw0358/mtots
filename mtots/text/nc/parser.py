@@ -49,7 +49,8 @@ type_ref = Forward(lambda: Any(
         ')',                                           # 3
         Any(
             All('[', func_decl_modifier.repeat(), ']')
-                .map(lambda args: args[1]),
+                .map(lambda args: args[1])
+                .map(sorted),
             All(),
         ),                                             # 4: attributes
         type_ref,                                      # 5: return type
@@ -111,6 +112,56 @@ struct_defn = All(
     native=m.value[2],
     fields=m.value[4],
 ))
+
+func_param = (
+    All('ID', type_ref)
+        .fatmap(lambda m: ast.Param(
+            mark=m.mark,
+            name=m.value[0],
+            type=m.value[1],
+        ))
+)
+
+func_params = All(
+    '(',
+    func_param.join(','),
+    Any(
+        All(',', '...').map(lambda x: True),
+        Any(',').optional().map(lambda x: False),
+    ),
+    ')',
+).map(lambda args: {
+    'params': args[1],
+    'varargs': args[2],
+})
+
+func_modifiers = Any(
+    All(
+        '[',
+        func_defn_modifier.repeat().map(sorted),
+        ']',
+    ).map(lambda args: args[1]),
+
+    # If no modifiers are specified, just return an empty list
+    All(),
+)
+
+func_proto = All(
+    'def',           # 0
+    'ID',            # 1: name
+    func_params,     # 2: parameters
+    func_modifiers,  # 3: function modifiers/attributes
+    type_ref,        # 4: return type
+).fatmap(lambda m: ast.FunctionDeclaration(
+    mark=m.mark,
+    name=m.value[1],
+    params=m.value[2]['params'],
+    varargs=m.value[2]['varargs'],
+    attrs=m.value[3],
+    rtype=m.value[4],
+))
+
+func_decl = All(func_proto, ';').map(lambda args: args[0])
 
 
 @test.case
@@ -276,3 +327,69 @@ def test_struct_defn():
         )),
     )
 
+
+@test.case
+def test_func_decl():
+    def parse(s):
+        return (
+            All(func_decl, Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    # Test simple example
+    test.equal(
+        parse('def foo(b Bar, z int) void;'),
+        base.Success(
+            None,
+            ast.FunctionDeclaration(
+                mark=None,
+                name='foo',
+                params=[
+                    ast.Param(None, 'b', types.NamedType('Bar')),
+                    ast.Param(None, 'z', types.INT),
+                ],
+                varargs=False,
+                attrs=[],
+                rtype=types.VOID,
+            ),
+        ),
+    )
+
+    # Test attrs entry
+    test.equal(
+        parse('def foo(b Bar, z int) [static] void;'),
+        base.Success(
+            None,
+            ast.FunctionDeclaration(
+                mark=None,
+                name='foo',
+                params=[
+                    ast.Param(None, 'b', types.NamedType('Bar')),
+                    ast.Param(None, 'z', types.INT),
+                ],
+                varargs=False,
+                attrs=['static'],
+                rtype=types.VOID,
+            ),
+        ),
+    )
+
+    # Test vararg and empty attrs
+    test.equal(
+        parse('def foo(b Bar, z int, ...) [] void;'),
+        base.Success(
+            None,
+            ast.FunctionDeclaration(
+                mark=None,
+                name='foo',
+                params=[
+                    ast.Param(None, 'b', types.NamedType('Bar')),
+                    ast.Param(None, 'z', types.INT),
+                ],
+                varargs=True,
+                attrs=[],
+                rtype=types.VOID,
+            ),
+        ),
+    )

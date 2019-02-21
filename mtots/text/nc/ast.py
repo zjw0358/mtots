@@ -55,8 +55,8 @@ class Param(VariableDeclaration, Definition):
 class FunctionDeclaration(GlobalDeclaration):
     params: typing.List['Param']
     varargs: bool
-    rtype: Type
     attrs: typing.List[str]
+    rtype: Type
 
 
 @util.dataclass
