@@ -150,13 +150,13 @@ class Token(Parser):
         elif self.value is _sentinel:
             return Failure(
                 mark,
-                f'Expected {self.type} (with value {self.value}) '
-                f'but got {peek.type} ({peek.value})',
+                f'Expected {self.type} but got {peek.type}',
             )
         else:
             return Failure(
                 mark,
-                f'Expected {self.type} but got {peek.type}',
+                f'Expected {self.type} (with value {self.value}) '
+                f'but got {peek.type} ({peek.value})',
             )
 
     def __str__(self):

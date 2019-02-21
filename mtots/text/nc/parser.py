@@ -17,7 +17,6 @@ blob = Forward(lambda: Any(
     AnyTokenBut('{', '}'),
 ))
 
-
 # These are modifiers that affect the type of a function
 # i.e. does the type of the function pointer need to know
 # this about the function it's pointinng to?
@@ -39,7 +38,6 @@ func_defn_modifier = Any(
     'static',
     func_decl_modifier,
 )
-
 
 type_ref = Forward(lambda: Any(
     All('*', type_ref).map(lambda args: types.PointerType(args[1])),
@@ -83,6 +81,13 @@ type_ref = Forward(lambda: Any(
     Any('ID')
         .map(types.NamedType)
         .recover(lambda mr: base.Failure(mr.mark, 'Expected type')),
+))
+
+struct_decl = All(
+    'struct', 'ID', ';',
+).fatmap(lambda m: ast.StructDeclaration(
+    mark=m.mark,
+    name=m.value[1],
 ))
 
 
@@ -162,3 +167,27 @@ def test_type_ref():
         parse('while'),
         base.Failure(None, 'Expected type'),
     )
+
+
+@test.case
+def test_struct_decl():
+    def parse(s):
+        return (
+            All(struct_decl, Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    test.equal(
+        parse('struct Foo;'),
+        base.Success(
+            None,
+            ast.StructDeclaration(None, 'Foo'),
+        ),
+    )
+
+    test.equal(
+        parse('struct Foo'),
+        base.Failure(None, 'Expected ; but got EOF'),
+    )
+
