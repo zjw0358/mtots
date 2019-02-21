@@ -11,6 +11,31 @@ Node = base.Node
 
 
 @util.dataclass
+class BaseImport(Node):
+    path: str
+
+
+@util.dataclass
+class CeeImport(BaseImport):
+    pass
+
+
+@util.dataclass
+class AngleBracketImport(CeeImport):
+    pass
+
+
+@util.dataclass
+class QuoteImport(CeeImport):
+    pass
+
+
+@util.dataclass
+class AbsoluteImport(BaseImport):
+    pass
+
+
+@util.dataclass
 class Declaration(Node):
     name: str
 

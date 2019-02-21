@@ -84,6 +84,36 @@ type_ref = Forward(lambda: Any(
         .recover(lambda mr: base.Failure(mr.mark, 'Expected type')),
 ))
 
+import_stmt = Any(
+    # C header imports with angle brackets, e.g.
+    # import <stdio.h>
+    All(
+        'import',
+        All('<', AnyTokenBut('>').repeat(), '>')
+            .map(lambda args: ''.join(map(str, args[1]))),
+    ).fatmap(lambda m: ast.AngleBracketImport(
+        mark=m.mark,
+        path=m.value[1],
+    )),
+
+    # C header imports, quoted. e.g.
+    # import "foo.h"
+    All('import', 'STR').fatmap(lambda m: ast.QuoteImport(
+        mark=m.mark,
+        path=m.value[1],
+    )),
+
+    # Declare dependency on another NC file. e.g.
+    # import some_package.some_filename
+    All(
+        'import',
+        Any('ID').join('.').map('.'.join),
+    ).fatmap(lambda m: ast.AbsoluteImport(
+        mark=m.mark,
+        path=m.value[1],
+    )),
+)
+
 struct_decl = All(
     'struct', 'ID', ';',
 ).fatmap(lambda m: ast.StructDeclaration(
@@ -239,6 +269,32 @@ def test_type_ref():
     test.equal(
         parse('while'),
         base.Failure(None, 'Expected type'),
+    )
+
+
+@test.case
+def test_import_stmt():
+    def parse(s):
+        return (
+            All(import_stmt.repeat(), Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    test.equal(
+        parse("""
+        import <stdio.h>
+        import "stdlib.h"
+        import a.b.c
+        """),
+        base.Success(
+            None,
+            [
+                ast.AngleBracketImport(None, path='stdio.h'),
+                ast.QuoteImport(None, path='stdlib.h'),
+                ast.AbsoluteImport(None, path='a.b.c'),
+            ],
+        ),
     )
 
 
