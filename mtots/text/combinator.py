@@ -33,6 +33,9 @@ import math
 _INF = 1 << 62  # Effectively infinite integer
 
 
+_sentinel = object()
+
+
 class Parser(abc.ABC):
 
     @staticmethod
@@ -136,15 +139,24 @@ class Parser(abc.ABC):
 @dataclass
 class Token(Parser):
     type: str
+    value: object = _sentinel
 
     def match(self, stream):
-        mark = stream.peek.mark
-        if stream.peek.type == self.type:
+        peek = stream.peek
+        mark = peek.mark
+        if (peek.type == self.type and
+                (self.value is _sentinel or peek.value == self.value)):
             return Success(mark, next(stream).value)
+        elif self.value is _sentinel:
+            return Failure(
+                mark,
+                f'Expected {self.type} (with value {self.value}) '
+                f'but got {peek.type} ({peek.value})',
+            )
         else:
             return Failure(
                 mark,
-                f'Expected {self.type} but got {stream.peek.type}',
+                f'Expected {self.type} but got {peek.type}',
             )
 
     def __str__(self):
