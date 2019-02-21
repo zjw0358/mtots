@@ -114,6 +114,15 @@ class Parser(abc.ABC):
 
         return self.map(flatten)
 
+    def join(self, separator):
+        return Any(
+            All(
+                self,
+                All(separator, self).map(lambda args: args[1]).repeat(),
+            ).map(lambda args: [args[0]] + args[1]),
+            All(),
+        )
+
     def repeat(self, min=0, max=_INF):
         return Repeat(self, min, max)
 
@@ -216,6 +225,7 @@ class All(CompoundParser):
     def match(self, stream):
         state = stream.state
         start_mark = stream.peek.mark
+        last_mark = start_mark
         values = []
         for parser in self.parsers:
             result = parser.match(stream)
@@ -477,7 +487,7 @@ def test_lexer(lexer):
     def name(m, mark):
         return [base.Token(mark, 'NAME', m.group())]
 
-    @lexer.add('\+|\-|\*|\/|\%')
+    @lexer.add('\+|\-|\*|\/|\%|\,')
     def open_paren(m, mark):
         return [base.Token(mark, m.group(), m.group())]
 
@@ -563,3 +573,43 @@ def test_simple_arithmetic_grammar():
         Success(None, 1 + (2 - 7) * 2),
     )
 
+
+@test.case
+def test_join():
+    expr = Forward(name='expr', parser_factory=lambda: addexpr)
+    atom = Any('NUMBER', All('(', expr, ')').map(lambda args: args[1]))
+    mulexpr = Forward(name='mulexpr', parser_factory=lambda: (
+        All(mulexpr, '*', atom).map(lambda args: args[0] * args[2]) |
+        All(mulexpr, '/', atom).map(lambda args: args[0] / args[2]) |
+        All(mulexpr, '%', atom).map(lambda args: args[0] % args[2]) |
+        atom
+    ))
+    addexpr = Forward(name='addexpr', parser_factory=lambda: (
+        All(addexpr, '+', mulexpr).map(lambda args: args[0] + args[2]) |
+        All(addexpr, '-', mulexpr).map(lambda args: args[0] - args[2]) |
+        mulexpr
+    ))
+    expr_list = All('(', expr.join(','), ')').map(lambda args: args[1])
+
+    def parse(text):
+        return expr_list.parse(test_lexer.lex_string(text))
+
+    test.equal(
+        parse('()'),
+        Success(None, []),
+    )
+
+    test.equal(
+        parse('(1, 1 + 2)'),
+        Success(None, [1, 3]),
+    )
+
+    test.equal(
+        parse('(4 + 4 * 65, 2, 3.4)'),
+        Success(None, [264, 2, 3.4]),
+    )
+
+    test.equal(
+        parse('(5)'),
+        Success(None, [5]),
+    )
