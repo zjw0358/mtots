@@ -33,6 +33,10 @@ class Scope:
         if key in self.table:
             return self.table[key]
         elif self.parent is not None:
-            return self.parent[key]
+            return self.parent.get(key, stack)
         else:
             raise base.Error(stack, f'{repr(key)} is not defined')
+
+    def update(self, scope):
+        for key, value in scope.items():
+            self.set(key, value, [])

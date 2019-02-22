@@ -1,3 +1,4 @@
+from . import types
 from .rstates import NoReturn
 from .rstates import Returns
 from .rstates import ReturnState
@@ -173,7 +174,7 @@ class Expression(StatementOrExpression):
         return self._type
 
     @abc.abstractmethod
-    def _get_type(self):
+    def _get_type(self, scope):
         pass
 
 
@@ -230,16 +231,24 @@ class Block(Statement):
             if i and nr not in stmt[i - 1].rstates:
                 raise base.Error([stmt.mark], f'Unrechable statement')
             rstates |= stmt.rstates
-        if nr not in stmts[len(stmts) - 1].rstates:
+        if stmts and nr not in stmts[len(stmts) - 1].rstates:
             rstates.discard(nr)
         return rstates
+
+
+@util.dataclass
+class StringLiteral(Expression):
+    value: str
+
+    def _get_type(self, scope):
+        return types.PointerType(types.CHAR)
 
 
 @util.dataclass
 class GetVariable(Expression):
     var: Declaration
 
-    def _get_type(self):
+    def _get_type(self, scope):
         return self.var.type
 
 
@@ -248,12 +257,45 @@ class SetVariable(Expression):
     var: Declaration
     expr: Expression
 
-    def _get_type(self):
+    def _get_type(self, scope):
         return self.var.type
 
 
 @util.dataclass
 class FunctionCall(Expression):
-    decl: FunctionDeclaration
+    name: str
     args: typing.List[Expression]
+    _decl = None  # FunctionDeclaration
+
+    def _get_type(self, scope):
+        decl = scope.get(self.name, [self.mark])
+        if not isinstance(decl, FunctionDeclaration):
+            raise base.Error(
+                [self.mark, decl.mark],
+                f'{self.name} is not a function',
+            )
+        self._check_params(decl)
+        return decl.rtype
+
+    def _check_params(self, decl):
+        if decl.varargs:
+            if len(decl.params) < len(self.args):
+                raise base.Error(
+                    [self.mark, decl.mark],
+                    f'Expected at least {len(decl.params)} args '
+                    f'but got {len(self.args)} args.'
+                )
+        else:
+            if len(decl.params) != len(self.args):
+                raise base.Error(
+                    [self.mark, decl.mark],
+                    f'Expected {len(decl.params)} args '
+                    f'but got {len(self.args)} args.'
+                )
+        for param, arg in zip(decl.params, self.args):
+            if not types.convertible(arg.type, param.type):
+                raise base.Error(
+                    [arg.mark, param.mark],
+                    f'Expected type {param.type} but got {arg.type}',
+                )
 

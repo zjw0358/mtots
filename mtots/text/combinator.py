@@ -102,6 +102,15 @@ class Parser(abc.ABC):
 
         return self.allmap(g)
 
+    def required(self):
+        """Throw exception on failed match
+        """
+
+        def require(match):
+            raise match.to_error()
+
+        return self.recover(require)
+
     def map(self, f):
 
         @functools.wraps(f)

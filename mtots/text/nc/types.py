@@ -7,6 +7,11 @@ class Type:
 
 
 @util.dataclass
+class _PrimitiveType(Type):
+    name: str
+
+
+@util.dataclass
 class NamedType(Type):
     name: str
 
@@ -29,18 +34,30 @@ class FunctionType(Type):
     varargs: bool              # whether varargs are accepted
 
 # Primitive types
-VOID = NamedType('void')
-CHAR = NamedType('char')
-SIGNED_CHAR = NamedType('signed char')
-UNSIGNED_CHAR = NamedType('unsigned char')
-SHORT = NamedType('short')
-UNSIGNED_SHORT = NamedType('unsigned short')
-INT = NamedType('int')
-UNSIGNED_INT = NamedType('unsigned int')
-LONG = NamedType('long')
-UNSIGNED_LONG = NamedType('unsigned long')
-LONG_LONG = NamedType('long long')
-UNSIGNED_LONG_LONG = NamedType('unsigned long long')
-FLOAT = NamedType('float')
-DOUBLE = NamedType('double')
-LONG_DOUBLE = NamedType('long double')
+VOID = _PrimitiveType('void')
+CHAR = _PrimitiveType('char')
+SIGNED_CHAR = _PrimitiveType('signed char')
+UNSIGNED_CHAR = _PrimitiveType('unsigned char')
+SHORT = _PrimitiveType('short')
+UNSIGNED_SHORT = _PrimitiveType('unsigned short')
+INT = _PrimitiveType('int')
+UNSIGNED_INT = _PrimitiveType('unsigned int')
+LONG = _PrimitiveType('long')
+UNSIGNED_LONG = _PrimitiveType('unsigned long')
+LONG_LONG = _PrimitiveType('long long')
+UNSIGNED_LONG_LONG = _PrimitiveType('unsigned long long')
+FLOAT = _PrimitiveType('float')
+DOUBLE = _PrimitiveType('double')
+LONG_DOUBLE = _PrimitiveType('long double')
+
+
+@util.multimethod(2)
+def convertible(builder):
+
+    @builder.on(PointerType, PointerType)
+    def convertible(source, dest):
+        return source == dest or dest.type == VOID
+
+    @builder.on(Type, Type)
+    def convertible(source, dest):
+        return source == dest

@@ -1,6 +1,7 @@
 from . import ast
 from . import lexer
 from . import types
+from .scopes import Scope
 from mtots import test
 from mtots.text import base
 from mtots.text.combinator import All
@@ -9,6 +10,7 @@ from mtots.text.combinator import AnyTokenBut
 from mtots.text.combinator import Forward
 from mtots.text.combinator import Peek
 from mtots.text.combinator import Token
+import os
 
 # Useful for skipping blocks of code
 # for the header parser
@@ -152,7 +154,7 @@ struct_defn = All(
 ))
 
 func_param = (
-    All(type_ref, 'ID')
+    All(type_ref, Any('ID').required())
         .fatmap(lambda m: ast.Param(
             mark=m.mark,
             type=m.value[0],
@@ -216,6 +218,120 @@ header = All(
     imports=m.value[0],
     decls=m.value[1],
 ))
+
+func_defn = Forward(lambda: All(
+    func_proto,
+    block,
+)).fatmap(lambda m: ast.FunctionDefinition(
+    mark=m.mark,
+    rtype=m.value[0].rtype,
+    name=m.value[0].name,
+    attrs=m.value[0].attrs,
+    params=m.value[0].params,
+    varargs=m.value[0].varargs,
+    body=m.value[1],
+))
+
+
+def source_callback_factory():
+
+    cache = {}
+
+    source_root = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        'root',
+    )
+
+    def import_path_to_file_path(import_path):
+        return os.path.join(
+            source_root,
+            import_path.replace('.', os.path.sep),
+        )
+
+    def load_header(import_path):
+        if import_path not in cache:
+            file_path = import_path_to_file_path(import_path)
+            with open(file_path) as f:
+                data = f.read()
+            source = base.Source(path=import_path, data=data)
+            tokens = lexer.lex(source)
+            loaded_header = source.parse(tokens)
+            cache[import_path] = source.parse(tokens)
+        return cache[import_path]
+
+    def source_callback(m):
+        imports = m.value.imports
+        decls = m.value.decls
+        scope = Scope(None)
+        for imp in imports:
+            if isinstance(imp, base.AbsoluteImport):
+                for decl in load_header(imp.path):
+                    scope.set(decl.name, decl, [])
+        for decl in decls:
+            print(f'declaring {decl.name}')
+            scope.set(decl.name, decl, [])
+        for decl in decls:
+            if isinstance(decl, ast.FunctionDefinition):
+                decl.body.annotate(scope)
+        return m.value
+
+    return source_callback
+
+source = Forward(lambda: All(
+    import_stmt.repeat(),
+    Any(
+        struct_decl,
+        struct_defn,
+        func_decl,
+        func_defn,
+    ).repeat(),
+)).fatmap(lambda m: ast.Source(
+    mark=m.mark,
+    imports=m.value[0],
+    decls=m.value[1],
+)).fatmap(source_callback_factory())
+
+
+expression = Forward(lambda: Any(
+    function_call,
+    Any('STR').fatmap(lambda m: ast.StringLiteral(
+        mark=m.mark,
+        value=m.value,
+    )),
+))
+
+statement = Forward(lambda: Any(
+    block,
+    expression_statement,
+))
+
+block = All('{', statement.repeat(), '}').fatmap(lambda m: ast.Block(
+    mark=m.mark,
+    stmts=m.value[1],
+))
+
+expression_statement = All(
+    expression, ';',
+).fatmap(lambda m: ast.ExpressionStatement(
+    mark=m.mark,
+    expr=m.value[0],
+))
+
+call_args = All(
+    '(',
+    expression.join(','),
+    Any(',').optional(),
+    ')',
+).map(lambda args: args[1])
+
+function_call = All(
+    'ID', call_args,
+).fatmap(lambda m: ast.FunctionCall(
+    mark=m.mark,
+    name=m.value[0],
+    args=m.value[1],
+))
+
 
 @test.case
 def test_blob():
@@ -489,6 +605,7 @@ def test_header():
         int main() {
             print("Hello world!");
         }
+        void print(char* x);
         """),
         base.Success(
             None,
@@ -498,11 +615,94 @@ def test_header():
                 decls=[
                     ast.FunctionDeclaration(
                         None,
+                        rtype=types.INT,
                         name='main',
                         params=[],
                         varargs=False,
                         attrs=[],
-                        rtype=types.NamedType(name='int')),
+                    ),
+                    ast.FunctionDeclaration(
+                        None,
+                        rtype=types.VOID,
+                        name='print',
+                        attrs=[],
+                        params=[
+                            ast.Param(
+                                None,
+                                type=types.PointerType(types.CHAR),
+                                name='x',
+                            ),
+                        ],
+                        varargs=False,
+                    ),
+                ],
+            ),
+        ),
+    )
+
+
+@test.case
+def test_source():
+    def parse(s):
+        return (
+            All(source, Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    test.equal(
+        parse("""
+        int main() {
+            print("Hello world!");
+        }
+        void print(char* x);
+        """),
+        base.Success(
+            None,
+            ast.Source(
+                None,
+                imports=[],
+                decls=[
+                    ast.FunctionDefinition(
+                        None,
+                        name='main',
+                        rtype=types.INT,
+                        attrs=[],
+                        params=[],
+                        varargs=False,
+                        body=ast.Block(
+                            None,
+                            stmts=[
+                                ast.ExpressionStatement(
+                                    None,
+                                    expr=ast.FunctionCall(
+                                        None,
+                                        name='print',
+                                        args=[
+                                            ast.StringLiteral(
+                                                None,
+                                                value='Hello world!',
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ),
+                    ast.FunctionDeclaration(
+                        None,
+                        name='print',
+                        rtype=types.VOID,
+                        attrs=[],
+                        params=[
+                            ast.Param(
+                                None,
+                                name='x',
+                                type=types.PointerType(types.CHAR),
+                            ),
+                        ],
+                        varargs=False,
+                    ),
                 ],
             ),
         ),

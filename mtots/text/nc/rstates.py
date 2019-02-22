@@ -17,3 +17,5 @@ class Returns(ReturnState):
 class NoReturn(ReturnState):
     "Indicates that no return statement may have been encountered"
 
+    def __hash__(self):
+        return hash(NoReturn)
