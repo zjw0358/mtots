@@ -307,12 +307,25 @@ class Forward(Parser):
         return self._parser
 
     def match(self, stream):
-        if self.parser is None:
+        key = (stream.state, id(self))
+
+        if key not in stream._cache:
+            stream._cache[key] = None
+            result = self._match_without_caching(stream)
+            stream._cache[key] = (stream.state, result)
+        elif stream._cache[key] is None:
             raise base.Error(
                 [stream.peek.mark],
-                f'Forward parser {self.name} used before being set',
+                f'Unsupported left recursion detected '
+                f'while parsing at {stream.peek.mark.info} '
+                f'{self.name} ({self.parser})',
             )
 
+        stream.state, result = stream._cache[key]
+
+        return result
+
+    def _match_without_caching(self, stream):
         return self.parser.match(stream)
 
     def __str__(self):

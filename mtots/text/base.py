@@ -236,6 +236,10 @@ class TokenStream:
         self.tokens = list(tokens)
         self.i = 0
 
+        # cache to be used only by combinator.Forward
+        # for memoizing results.
+        self._cache = {}
+
     def __iter__(self):
         return self
 
