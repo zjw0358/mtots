@@ -138,16 +138,16 @@ struct_field = All(
 ))
 
 struct_defn = All(
-    'struct',                                # 0
-    'ID',                                    # 1: name
-    Any('native').optional().map(bool),      # 2: native
+    Any('native').optional().map(bool),      # 0: native
+    'struct',                                # 1
+    'ID',                                    # 2: name
     '{',                                     # 3
     struct_field.repeat(),                   # 4: fields
     '}',                                     # 5
 ).fatmap(lambda m: ast.StructDefinition(
     mark=m.mark,
-    name=m.value[1],
-    native=m.value[2],
+    native=m.value[0],
+    name=m.value[2],
     fields=m.value[4],
 ))
 
@@ -362,8 +362,8 @@ def test_struct_defn():
         """),
         base.Success(None, ast.StructDefinition(
             mark=None,
-            name='Foo',
             native=False,
+            name='Foo',
             fields=[
                 ast.Field(
                     mark=None,
@@ -381,15 +381,15 @@ def test_struct_defn():
 
     test.equal(
         parse("""
-        struct Foo native {
+        native struct Foo {
             Bar b;
             int* x;
         }
         """),
         base.Success(None, ast.StructDefinition(
             mark=None,
-            name='Foo',
             native=True,
+            name='Foo',
             fields=[
                 ast.Field(
                     mark=None,
