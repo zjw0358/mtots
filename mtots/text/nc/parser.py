@@ -41,29 +41,7 @@ func_defn_modifier = Any(
     func_decl_modifier,
 )
 
-type_ref = Forward(lambda: Any(
-    All('*', type_ref).map(lambda args: types.PointerType(args[1])),
-    All('const', type_ref).map(lambda args: types.ConstType(args[1])),
-    All(
-        '(',                                           # 0
-            type_ref.join(','),                        # 1: param types
-            All(',', '...').optional(),                # 2: vararg
-        ')',                                           # 3
-        Any(
-            All('[', func_decl_modifier.repeat(), ']')
-                .map(lambda args: args[1])
-                .map(sorted),
-            All(),
-        ),                                             # 4: attributes
-        type_ref,                                      # 5: return type
-    ).map(lambda args: types.FunctionType(
-        ptypes=args[1],
-        varargs=bool(args[2]),
-        attrs=args[4],
-        rtype=args[5],
-    )),
-
-    # Primitive types
+primitive_type_ref = Any(
     All('void').map(lambda x: types.VOID),
     All('char').map(lambda x: types.CHAR),
     All('signed', 'char').map(lambda x: types.SIGNED_CHAR),
@@ -79,6 +57,34 @@ type_ref = Forward(lambda: Any(
     All('float').map(lambda x: types.FLOAT),
     All('double').map(lambda x: types.DOUBLE),
     All('long', 'double').map(lambda x: types.LONG_DOUBLE),
+)
+
+type_ref = Forward(lambda: Any(
+    All(type_ref, '*').map(lambda args: types.PointerType(args[0])),
+    All(type_ref, 'const').map(lambda args: types.ConstType(args[0])),
+    All(
+        type_ref,                                      # 0: return type
+        Any(
+            All('[', func_decl_modifier.repeat(), ']')
+                .map(lambda args: args[1])
+                .map(sorted),
+            All(),
+        ),                                             # 1: attributes
+        '(',                                           # 2
+            type_ref.join(','),                        # 3: param types
+            All(',', '...').optional(),                # 4: vararg
+        ')',                                           # 5
+    ).map(lambda args: types.FunctionType(
+        rtype=args[0],
+        attrs=args[1],
+        ptypes=args[3],
+        varargs=bool(args[4]),
+    )),
+
+    All('const', primitive_type_ref)
+        .map(lambda args: types.ConstType(args[1])),
+
+    primitive_type_ref,
 
     # Struct and typedef'd types
     Any('ID')
@@ -124,11 +130,11 @@ struct_decl = All(
 ))
 
 struct_field = All(
-    'ID', type_ref, ';',
+    type_ref, 'ID', ';',
 ).fatmap(lambda m: ast.Field(
     mark=m.mark,
-    name=m.value[0],
-    type=m.value[1],
+    type=m.value[0],
+    name=m.value[1],
 ))
 
 struct_defn = All(
@@ -146,11 +152,11 @@ struct_defn = All(
 ))
 
 func_param = (
-    All('ID', type_ref)
+    All(type_ref, 'ID')
         .fatmap(lambda m: ast.Param(
             mark=m.mark,
-            name=m.value[0],
-            type=m.value[1],
+            type=m.value[0],
+            name=m.value[1],
         ))
 )
 
@@ -179,18 +185,17 @@ func_modifiers = Any(
 )
 
 func_proto = All(
-    'def',           # 0
+    type_ref,        # 0: return type
     'ID',            # 1: name
-    func_params,     # 2: parameters
-    func_modifiers,  # 3: function modifiers/attributes
-    type_ref,        # 4: return type
+    func_modifiers,  # 2: function modifiers/attributes
+    func_params,     # 3: parameters
 ).fatmap(lambda m: ast.FunctionDeclaration(
     mark=m.mark,
+    rtype=m.value[0],
     name=m.value[1],
-    params=m.value[2]['params'],
-    varargs=m.value[2]['varargs'],
-    attrs=m.value[3],
-    rtype=m.value[4],
+    attrs=m.value[2],
+    params=m.value[3]['params'],
+    varargs=m.value[3]['varargs'],
 ))
 
 func_decl = All(func_proto, ';').map(lambda args: args[0])
@@ -259,7 +264,7 @@ def test_type_ref():
     test.equal(parse('int'), base.Success(None, types.INT))
     test.equal(parse('void'), base.Success(None, types.VOID))
     test.equal(
-        parse('*void'),
+        parse('void*'),
         base.Success(None, types.PointerType(types.VOID)),
     )
     test.equal(
@@ -267,7 +272,7 @@ def test_type_ref():
         base.Success(None, types.NamedType('Foo')),
     )
     test.equal(
-        parse('()int'),
+        parse('int()'),
         base.Success(None, types.FunctionType(
             ptypes=[],
             varargs=False,
@@ -276,7 +281,7 @@ def test_type_ref():
         ))
     )
     test.equal(
-        parse('(int)[__cdecl]double'),
+        parse('double[__cdecl](int)'),
         base.Success(None, types.FunctionType(
             ptypes=[types.INT],
             varargs=False,
@@ -351,8 +356,8 @@ def test_struct_defn():
     test.equal(
         parse("""
         struct Foo {
-            b Bar;
-            x *int;
+            Bar b;
+            int* x;
         }
         """),
         base.Success(None, ast.StructDefinition(
@@ -374,12 +379,11 @@ def test_struct_defn():
         )),
     )
 
-
     test.equal(
         parse("""
         struct Foo native {
-            b Bar;
-            x *int;
+            Bar b;
+            int* x;
         }
         """),
         base.Success(None, ast.StructDefinition(
@@ -413,7 +417,7 @@ def test_func_decl():
 
     # Test simple example
     test.equal(
-        parse('def foo(b Bar, z int) void;'),
+        parse('void foo(Bar b, int z);'),
         base.Success(
             None,
             ast.FunctionDeclaration(
@@ -432,7 +436,7 @@ def test_func_decl():
 
     # Test attrs entry
     test.equal(
-        parse('def foo(b Bar, z int) [static] void;'),
+        parse('void foo[static](Bar b, int z);'),
         base.Success(
             None,
             ast.FunctionDeclaration(
@@ -451,7 +455,7 @@ def test_func_decl():
 
     # Test vararg and empty attrs
     test.equal(
-        parse('def foo(b Bar, z int, ...) [] void;'),
+        parse('void foo[](Bar b, int z, ...);'),
         base.Success(
             None,
             ast.FunctionDeclaration(
@@ -482,7 +486,7 @@ def test_header():
         parse("""
         import <stdio.h>
 
-        def main() int {
+        int main() {
             print("Hello world!");
         }
         """),

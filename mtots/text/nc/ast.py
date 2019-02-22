@@ -70,8 +70,8 @@ class Definition(Declaration):
 
 @util.dataclass
 class Field(Node):
-    name: str
     type: Type
+    name: str
 
 
 @util.dataclass
@@ -87,16 +87,16 @@ class StructDefinition(StructDeclaration, Definition):
 
 @util.dataclass
 class Param(VariableDeclaration, Definition):
-    name: str
     type: Type
+    name: str
 
 
 @util.dataclass
 class FunctionDeclaration(GlobalDeclaration):
+    rtype: Type
+    attrs: typing.List[str]
     params: typing.List['Param']
     varargs: bool
-    attrs: typing.List[str]
-    rtype: Type
 
 
 @util.dataclass

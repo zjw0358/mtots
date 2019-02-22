@@ -23,10 +23,10 @@ class ConstType(Type):
 
 @util.dataclass
 class FunctionType(Type):
+    rtype: Type                # return type
+    attrs: typing.List[str]    # attributes (e.g. calling convention)
     ptypes: typing.List[Type]  # parameter types
     varargs: bool              # whether varargs are accepted
-    attrs: typing.List[str]    # attributes (e.g. calling convention)
-    rtype: Type                # return type
 
 # Primitive types
 VOID = NamedType('void')
