@@ -61,6 +61,11 @@ primitive_type_ref = Any(
     All('long', 'double').map(lambda x: types.LONG_DOUBLE),
 )
 
+simple_type_ref = Any(
+    Any('ID').map(types.NamedType),
+    primitive_type_ref,
+)
+
 type_ref = Forward(lambda: Any(
     All(type_ref, '*').map(lambda args: types.PointerType(args[0])),
     All(type_ref, 'const').map(lambda args: types.ConstType(args[0])),
@@ -83,14 +88,10 @@ type_ref = Forward(lambda: Any(
         varargs=bool(args[4]),
     )),
 
-    All('const', primitive_type_ref)
+    All('const', simple_type_ref)
         .map(lambda args: types.ConstType(args[1])),
 
-    primitive_type_ref,
-
-    # Struct and typedef'd types
-    Any('ID')
-        .map(types.NamedType)
+    simple_type_ref
         .recover(lambda mr: base.Failure(mr.mark, 'Expected type')),
 ))
 
