@@ -75,6 +75,19 @@ def gen_header(builder):
         return f'{declare(decl)};\n'
 
 
+@util.multimethod(1)
+def gen_source(builder):
+
+    @builder.on(ast.Source)
+    def gen(source):
+        metadata = source.mark.source.metadata
+        if metadata is None:
+            path = 'main.h'
+        else:
+            path = metadata['path'].replace('.', '/') + '.h'
+        parts = [f'#include "nc/out/{path}"\n']
+        return ''.join(parts)
+
 
 @test.case
 def sample_test():
