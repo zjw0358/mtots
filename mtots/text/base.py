@@ -13,6 +13,7 @@ import typing
 class Source(typing.NamedTuple):
     path: str
     data: str
+    metadata: object = None
 
     @staticmethod
     def from_string(data):
@@ -267,6 +268,10 @@ class TokenStream:
 @dataclass
 class MatchResult:
     mark: Mark = dataclasses.field(compare=False, repr=False)
+
+    @property
+    def source(self):
+        return self.mark.source
 
 
 @dataclass

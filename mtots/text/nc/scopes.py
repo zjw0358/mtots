@@ -1,5 +1,6 @@
 import typing
 from mtots.text import base
+from . import errors
 
 
 class Scope:
@@ -15,12 +16,12 @@ class Scope:
         if key in self.table:
             old_decl = self.table[key]
             if isinstance(old_decl, Definition):
-                raise base.Error(
+                raise errors.TypeError(
                     stack + [old_decl.mark, new_decl.mark],
                     f'{repr(key)} is already defined',
                 )
             if not old_decl.match(new_decl):
-                raise base.Error(
+                raise errors.TypeError(
                     stack + [old_decl.mark, new_decl.mark],
                     f"{repr(key)} declarations don't match",
                 )
@@ -35,7 +36,10 @@ class Scope:
         elif self.parent is not None:
             return self.parent.get(key, stack)
         else:
-            raise base.Error(stack, f'{repr(key)} is not defined')
+            raise errors.MissingReference(
+                stack,
+                f'{repr(key)} is not defined',
+            )
 
     def update(self, scope):
         for key, value in scope.items():

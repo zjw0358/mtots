@@ -1,3 +1,4 @@
+from . import errors
 from . import types
 from .rstates import NoReturn
 from .rstates import Returns
@@ -228,8 +229,8 @@ class Block(Statement):
         stmts = self.stmts
         rstates = {nr}
         for i, stmt in enumerate(stmts):
-            if i and nr not in stmt[i - 1].rstates:
-                raise base.Error([stmt.mark], f'Unrechable statement')
+            if i and nr not in stmts[i - 1].rstates:
+                raise errors.TypeError([stmt.mark], f'Unrechable statement')
             rstates |= stmt.rstates
         if stmts and nr not in stmts[len(stmts) - 1].rstates:
             rstates.discard(nr)
@@ -241,7 +242,7 @@ class StringLiteral(Expression):
     value: str
 
     def _get_type(self, scope):
-        return types.PointerType(types.CHAR)
+        return types.PointerType(types.ConstType(types.CHAR))
 
 
 @util.dataclass
@@ -270,7 +271,7 @@ class FunctionCall(Expression):
     def _get_type(self, scope):
         decl = scope.get(self.name, [self.mark])
         if not isinstance(decl, FunctionDeclaration):
-            raise base.Error(
+            raise errors.TypeError(
                 [self.mark, decl.mark],
                 f'{self.name} is not a function',
             )
@@ -280,21 +281,21 @@ class FunctionCall(Expression):
     def _check_params(self, decl):
         if decl.varargs:
             if len(decl.params) < len(self.args):
-                raise base.Error(
+                raise errors.TypeError(
                     [self.mark, decl.mark],
                     f'Expected at least {len(decl.params)} args '
                     f'but got {len(self.args)} args.'
                 )
         else:
             if len(decl.params) != len(self.args):
-                raise base.Error(
+                raise errors.TypeError(
                     [self.mark, decl.mark],
                     f'Expected {len(decl.params)} args '
                     f'but got {len(self.args)} args.'
                 )
         for param, arg in zip(decl.params, self.args):
             if not types.convertible(arg.type, param.type):
-                raise base.Error(
+                raise errors.TypeError(
                     [arg.mark, param.mark],
                     f'Expected type {param.type} but got {arg.type}',
                 )

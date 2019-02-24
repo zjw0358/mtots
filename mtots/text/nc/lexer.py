@@ -1,10 +1,7 @@
+from . import errors
 from mtots import test
 from mtots.text import base
 import re
-
-
-class Error(base.Error):
-    pass
 
 
 C_KEYWORDS = {
@@ -212,7 +209,7 @@ def lexer(lexer):
         # Allow user to specify valid C identifiers as identifiers.
         name = m.group()[1:-1]
         if name in C_KEYWORDS:
-            raise Error(
+            raise errors.LexError(
                 [mark],
                 'C keywords cannot be used as identifiers even '
                 f'if they are escaped ({name})',
@@ -252,7 +249,7 @@ def lexer(lexer):
         while i < len(s):
             if s[i] == '\\':
                 if i + 1 >= len(s):
-                    raise Error([mark], f'Incomplete escape')
+                    raise errors.LexError([mark], f'Incomplete escape')
                 if s[i + 1].isdigit():
                     j = i + 1
                     while j < len(s) and s[j].isdigit():
@@ -263,7 +260,10 @@ def lexer(lexer):
                     parts.append(_ESCAPE_MAP[s[i + 1]])
                     i += 2
                 else:
-                    raise Error([mark], f'Invalid escape {s[i + 1]}')
+                    raise errors.LexError(
+                        [mark],
+                        f'Invalid escape {s[i + 1]}',
+                    )
             else:
                 j = i + 1
                 while j < len(s) and s[j] != '\\':
@@ -284,7 +284,7 @@ def lexer(lexer):
 
     @lexer.add(r"'(?:" + escape_seq + r"|[^\r\n'])*'")
     def invalid_char_literal(m, mark):
-        raise Error([mark], 'Multi-character char literal')
+        raise errors.LexError([mark], 'Multi-character char literal')
 
     symbols_regex = '|'.join(
         re.escape(symbol)
@@ -335,7 +335,7 @@ def test_id():
             base.Token(None, 'EOF', None),
         ]
     )
-    @test.throws(Error)
+    @test.throws(errors.LexError)
     def on_c_keyword():
         list(lex_string('`struct`'))
 

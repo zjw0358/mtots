@@ -1,4 +1,5 @@
 from mtots import util
+from mtots.text import base
 import typing
 
 
@@ -10,20 +11,32 @@ class Type:
 class _PrimitiveType(Type):
     name: str
 
+    def __repr__(self):
+        return self.name.upper()
+
 
 @util.dataclass
 class NamedType(Type):
     name: str
+
+    def __str__(self):
+        return self.name
 
 
 @util.dataclass
 class PointerType(Type):
     type: Type
 
+    def __str__(self):
+        return f'{self.type}*'
+
 
 @util.dataclass
 class ConstType(Type):
     type: Type
+
+    def __str__(self):
+        return f'{self.type} const'
 
 
 @util.dataclass
@@ -32,6 +45,13 @@ class FunctionType(Type):
     attrs: typing.List[str]    # attributes (e.g. calling convention)
     ptypes: typing.List[Type]  # parameter types
     varargs: bool              # whether varargs are accepted
+
+    def __str__(self):
+        rtype = str(self.rtype)
+        attrs = f'[{" ".join(map(str, self.attrs))}]' if self.attrs else ''
+        ptypes = ', '.join(map(str, self.ptypes))
+        varargs = ', ...' if self.varargs else ''
+        return f'{rtype}{attrs}({ptypes}{varargs})'
 
 # Primitive types
 VOID = _PrimitiveType('void')
@@ -56,7 +76,12 @@ def convertible(builder):
 
     @builder.on(PointerType, PointerType)
     def convertible(source, dest):
-        return source == dest or dest.type == VOID
+        return (
+            source == dest or
+            dest.type == VOID or
+            (isinstance(dest.type, ConstType) and
+                dest.type.type == source.type)
+        )
 
     @builder.on(Type, Type)
     def convertible(source, dest):

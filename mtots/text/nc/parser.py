@@ -1,4 +1,5 @@
 from . import ast
+from . import errors
 from . import lexer
 from . import types
 from .scopes import Scope
@@ -246,7 +247,7 @@ def source_callback_factory():
     def import_path_to_file_path(import_path):
         return os.path.join(
             source_root,
-            import_path.replace('.', os.path.sep),
+            import_path.replace('.', os.path.sep) + '.nc',
         )
 
     def load_header(import_path):
@@ -254,10 +255,12 @@ def source_callback_factory():
             file_path = import_path_to_file_path(import_path)
             with open(file_path) as f:
                 data = f.read()
-            source = base.Source(path=import_path, data=data)
+            source = base.Source(path=file_path, data=data)
             tokens = lexer.lex(source)
-            loaded_header = source.parse(tokens)
-            cache[import_path] = source.parse(tokens)
+            match_result = header.parse(tokens)
+            if not match_result:
+                raise match_result.to_error()
+            cache[import_path] = match_result.value
         return cache[import_path]
 
     def source_callback(m):
@@ -265,11 +268,10 @@ def source_callback_factory():
         decls = m.value.decls
         scope = Scope(None)
         for imp in imports:
-            if isinstance(imp, base.AbsoluteImport):
-                for decl in load_header(imp.path):
+            if isinstance(imp, ast.AbsoluteImport):
+                for decl in load_header(imp.path).decls:
                     scope.set(decl.name, decl, [])
         for decl in decls:
-            print(f'declaring {decl.name}')
             scope.set(decl.name, decl, [])
         for decl in decls:
             if isinstance(decl, ast.FunctionDefinition):
@@ -656,7 +658,7 @@ def test_source():
         int main() {
             print("Hello world!");
         }
-        void print(char* x);
+        void print(const char* x);
         """),
         base.Success(
             None,
@@ -699,10 +701,81 @@ def test_source():
                             ast.Param(
                                 None,
                                 name='x',
-                                type=types.PointerType(types.CHAR),
+                                type=types.PointerType(
+                                    types.ConstType(types.CHAR),
+                                ),
                             ),
                         ],
                         varargs=False,
+                    ),
+                ],
+            ),
+        ),
+    )
+
+
+@test.case
+def test_import():
+    def parse(s):
+        return (
+            All(source, Peek('EOF'))
+                .map(lambda args: args[0])
+                .parse(lexer.lex_string(s))
+        )
+
+    error_message = r"""'printf' is not defined
+on line 3
+            printf("Hello world!\n");
+            *"""
+
+    @test.throws(errors.MissingReference)
+    def missing_reference():
+        parse(r"""
+        int main() {
+            printf("Hello world!\n");
+        }
+        """)
+
+    test.equal(
+        parse(r"""
+        import stdio
+        int main() {
+            printf("Hello world!\n");
+        }
+        """),
+        base.Success(
+            None,
+            ast.Source(
+                None,
+                imports=[
+                    ast.AbsoluteImport(None, path='stdio'),
+                ],
+                decls=[
+                    ast.FunctionDefinition(
+                        None,
+                        name='main',
+                        rtype=types.INT,
+                        attrs=[],
+                        params=[],
+                        varargs=False,
+                        body=ast.Block(
+                            None,
+                            stmts=[
+                                ast.ExpressionStatement(
+                                    None,
+                                    expr=ast.FunctionCall(
+                                        None,
+                                        name='printf',
+                                        args=[
+                                            ast.StringLiteral(
+                                                None,
+                                                value='Hello world!\n',
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ],
+                        ),
                     ),
                 ],
             ),
