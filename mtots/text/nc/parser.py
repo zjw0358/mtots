@@ -235,48 +235,20 @@ func_defn = Forward(lambda: All(
 ))
 
 
-def source_callback_factory():
-
-    cache = {}
-
-    source_root = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        'root',
-    )
-
-    def import_path_to_file_path(import_path):
-        return os.path.join(
-            source_root,
-            import_path.replace('.', os.path.sep) + '.nc',
-        )
-
-    def load_header(import_path):
-        if import_path not in cache:
-            file_path = import_path_to_file_path(import_path)
-            with open(file_path) as f:
-                data = f.read()
-            source = base.Source(path=file_path, data=data)
-            tokens = lexer.lex(source)
-            match_result = header.parse(tokens)
-            if not match_result:
-                raise match_result.to_error()
-            cache[import_path] = match_result.value
-        return cache[import_path]
-
-    def source_callback(m):
-        imports = m.value.imports
-        decls = m.value.decls
-        scope = Scope(None)
-        for imp in imports:
-            if isinstance(imp, ast.AbsoluteImport):
-                for decl in load_header(imp.path).decls:
-                    scope.set(decl.name, decl, [])
-        for decl in decls:
-            scope.set(decl.name, decl, [])
-        for decl in decls:
-            if isinstance(decl, ast.FunctionDefinition):
-                decl.body.annotate(scope)
-        return m.value
+def source_callback(m):
+    imports = m.value.imports
+    decls = m.value.decls
+    scope = Scope(None)
+    for imp in imports:
+        if isinstance(imp, ast.AbsoluteImport):
+            for decl in load_header(imp.path).decls:
+                scope.set(decl.name, decl, [])
+    for decl in decls:
+        scope.set(decl.name, decl, [])
+    for decl in decls:
+        if isinstance(decl, ast.FunctionDefinition):
+            decl.body.annotate(scope)
+    return m.value
 
     return source_callback
 
@@ -292,7 +264,7 @@ source = Forward(lambda: All(
     mark=m.mark,
     imports=m.value[0],
     decls=m.value[1],
-)).fatmap(source_callback_factory())
+)).fatmap(source_callback)
 
 
 expression = Forward(lambda: Any(
@@ -334,6 +306,69 @@ function_call = All(
     name=m.value[0],
     args=m.value[1],
 ))
+
+
+_source_root = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    'root',
+)
+
+
+def _import_path_to_file_path(import_path):
+    return os.path.join(
+        _source_root,
+        import_path.replace('.', os.path.sep) + '.nc',
+    )
+
+
+def _load_base_source(import_path):
+    file_path = _import_path_to_file_path(import_path)
+    with open(file_path) as f:
+        data = f.read()
+    return base.Source(path=file_path, data=data)
+
+
+def _load_header_without_cache(import_path):
+    base_source = _load_base_source(import_path)
+    return parse_header(
+        data=base_source.data,
+        path=base_source.path,
+    )
+
+
+def _parse_pattern(pattern, source):
+    tokens = lexer.lex(source)
+    match_result = pattern.parse(tokens)
+    if not match_result:
+        raise match_result.to_error()
+    return match_result.value
+
+
+def parse_header(data, path='<string>'):
+    base_source = base.Source(data=data, path=path)
+    return _parse_pattern(pattern=header, source=base_source)
+
+
+_header_cache = {}
+
+
+def load_header(import_path):
+    if import_path not in _header_cache:
+        _header_cache[import_path] = _load_header_without_cache(import_path)
+    return _header_cache[import_path]
+
+
+def parse_source(data, path='<string>'):
+    base_source = base.Source(data=data, path=path)
+    return _parse_pattern(pattern=source, source=base_source)
+
+
+def load_source(import_path):
+    base_source = _load_base_source(import_path)
+    return parse_source(
+        data=base_source.data,
+        path=base_source.path,
+    )
 
 
 @test.case
