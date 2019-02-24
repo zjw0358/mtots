@@ -196,7 +196,7 @@ def lexer(lexer):
     def line_comments(m, mark):
         return ()
 
-    @lexer.add(r'(?:[^\W\d]|\$)(?:\w|\$)*')
+    @lexer.add(r'(?:[^\W\d]|\$)\w*')
     def id_or_keyword(m, mark):
         name = m.group()
         if name in KEYWORDS:
