@@ -1,4 +1,4 @@
 import <stdio.h>
 
 
-void printf(const char* fmt, ...);
+int printf(const char* fmt, ...);

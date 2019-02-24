@@ -58,12 +58,20 @@ class Header(Node):
     imports: typing.List[BaseImport]
     decls: typing.List[GlobalDeclaration]
 
+    @property
+    def import_path(self):
+        return self.mark.source.metadata['import_path']
+
 
 @util.dataclass
 class Source(Node):
     "Like Header, but FunctionDefinitions are properly parsed"
     imports: typing.List[BaseImport]
     decls: typing.List[GlobalDeclaration]
+
+    @property
+    def import_path(self):
+        return self.mark.source.metadata['import_path']
 
 
 class Definition(Declaration):
@@ -235,6 +243,14 @@ class Block(Statement):
         if stmts and nr not in stmts[len(stmts) - 1].rstates:
             rstates.discard(nr)
         return rstates
+
+
+@util.dataclass
+class IntLiteral(Expression):
+    value: int
+
+    def _get_type(self, scope):
+        return types.INT
 
 
 @util.dataclass

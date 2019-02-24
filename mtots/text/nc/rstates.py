@@ -7,15 +7,12 @@ class ReturnState:
     "Describe the state of what a function returns after a given statement"
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class Returns(ReturnState):
     "Indicates that a return statement that returns given type encountered"
     type: Type
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class NoReturn(ReturnState):
     "Indicates that no return statement may have been encountered"
-
-    def __hash__(self):
-        return hash(NoReturn)

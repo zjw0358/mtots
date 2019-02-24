@@ -53,10 +53,10 @@ class Multimethod:
                     f'{repr(self.name)} is not defined for types {types}')
         return self._table[types]
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         types = tuple(type(arg) for arg in args[:self.n])
         f = self.find(types)
-        return f(*args)
+        return f(*args, **kwargs)
 
 
 multimethod = Multimethod.new

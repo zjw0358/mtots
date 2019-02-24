@@ -1,5 +1,6 @@
 from mtots import util
 from mtots.text import base
+from mtots.util import dataclasses
 import typing
 
 
@@ -7,7 +8,7 @@ class Type:
     pass
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class _PrimitiveType(Type):
     name: str
 
@@ -15,7 +16,7 @@ class _PrimitiveType(Type):
         return self.name.upper()
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class NamedType(Type):
     name: str
 
@@ -23,7 +24,7 @@ class NamedType(Type):
         return self.name
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class PointerType(Type):
     type: Type
 
@@ -31,7 +32,7 @@ class PointerType(Type):
         return f'{self.type}*'
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class ConstType(Type):
     type: Type
 
@@ -39,7 +40,7 @@ class ConstType(Type):
         return f'{self.type} const'
 
 
-@util.dataclass
+@util.dataclass(frozen=True)
 class FunctionType(Type):
     rtype: Type                # return type
     attrs: typing.List[str]    # attributes (e.g. calling convention)

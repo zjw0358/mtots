@@ -59,7 +59,7 @@ class Mark(typing.NamedTuple):
         colno = self.colno
         lineno = self.lineno
         spaces = ' ' * (colno - 1)
-        return f'on line {lineno}\n{line}\n{spaces}*\n'
+        return f'{self.source.path} line {lineno}\n{line}\n{spaces}*\n'
 
     def __repr__(self):
         return f'Mark({self.start}, {self.end}, {self.main})'

@@ -1,10 +1,12 @@
 """
-There are 4 main functions from this file for parsing nc source:
+There are 6 main functions from this file for parsing nc source:
 
     load_header(import_path)
     load_source(import_path)
-    parse_header(data, file_path='<string>', import_path='__main__')
-    parse_source(data, file_path='<string>', import_path='__main__')
+    parse_header(data, file_path='<string>', import_path=MAIN_IMPORT_PATH)
+    parse_source(data, file_path='<string>', import_path=MAIN_IMPORT_PATH)
+    parse_header_file(file_path, import_path=MAIN_IMPORT_PATH)
+    parse_source_file(file_path, import_path=MAIN_IMPORT_PATH)
 
 """
 from . import ast
@@ -21,6 +23,8 @@ from mtots.text.combinator import Forward
 from mtots.text.combinator import Peek
 from mtots.text.combinator import Token
 import os
+
+MAIN_IMPORT_PATH = '__main__'
 
 # Useful for skipping blocks of code
 # for the header parser
@@ -232,7 +236,8 @@ header = All(
 
 func_defn = Forward(lambda: All(
     func_proto,
-    block,
+    Peek('{'),
+    block.required(),
 )).fatmap(lambda m: ast.FunctionDefinition(
     mark=m.mark,
     rtype=m.value[0].rtype,
@@ -240,7 +245,7 @@ func_defn = Forward(lambda: All(
     attrs=m.value[0].attrs,
     params=m.value[0].params,
     varargs=m.value[0].varargs,
-    body=m.value[1],
+    body=m.value[2],
 ))
 
 
@@ -282,16 +287,32 @@ expression = Forward(lambda: Any(
         mark=m.mark,
         value=m.value,
     )),
+    Any('INT').fatmap(lambda m: ast.IntLiteral(m.mark, m.value)),
 ))
 
 statement = Forward(lambda: Any(
     block,
+    return_statement,
     expression_statement,
 ))
 
 block = All('{', statement.repeat(), '}').fatmap(lambda m: ast.Block(
     mark=m.mark,
     stmts=m.value[1],
+))
+
+return_statement = All(
+    'return',
+    All(
+        Any(
+            expression,
+            All().map(lambda x: None),
+        ),
+        ';',
+    ).map(lambda args: args[0]).required(),
+).fatmap(lambda m: ast.Return(
+    mark=m.mark,
+    expr=m.value[1],
 ))
 
 expression_statement = All(
@@ -343,6 +364,9 @@ def _make_exports():
 
     def _load_base_source(import_path):
         file_path = _import_path_to_file_path(import_path)
+        return _read_base_source(file_path, import_path)
+
+    def _read_base_source(file_path, import_path):
         with open(file_path) as f:
             data = f.read()
         return _make_base_source(
@@ -368,7 +392,7 @@ def _make_exports():
         return match_result.value
 
 
-    def parse_header(data, file_path='<string>', import_path='__main__'):
+    def parse_header(data, file_path='<string>', import_path=MAIN_IMPORT_PATH):
         return parse_header_source(_make_base_source(
             data=data,
             file_path=file_path,
@@ -385,8 +409,8 @@ def _make_exports():
         return _header_cache[import_path]
 
 
-    def parse_source(data, file_path='<string>', import_path='__main__'):
-        return _parse_source_source(_make_base_source(
+    def parse_source(data, file_path='<string>', import_path=MAIN_IMPORT_PATH):
+        return parse_source_source(_make_base_source(
             data=data,
             file_path=file_path,
             import_path=import_path,
@@ -398,31 +422,45 @@ def _make_exports():
 
 
     def load_source(import_path):
-        base_source = _load_base_source(import_path)
-        return parse_source_source(
-            data=base_source.data,
-            path=base_source.path,
-        )
+        return parse_source_source(_load_base_source(import_path))
+
+    def parse_header_file(file_path, import_path=MAIN_IMPORT_PATH):
+        return parse_header_source(_read_base_source(
+            file_path=file_path,
+            import_path=import_path,
+        ))
+
+    def parse_source_file(file_path, import_path=MAIN_IMPORT_PATH):
+        return parse_source_source(_read_base_source(
+            file_path=file_path,
+            import_path=import_path,
+        ))
 
     return {
         'load_source': load_source,
         'load_header': load_header,
         'parse_source': parse_source,
         'parse_header': parse_header,
+        'parse_header_file': parse_header_file,
+        'parse_source_file': parse_source_file,
     }
 
 
 _exports = _make_exports()
 
 # Functions that accept an import_path
-load_source = _exports['load_source']
 load_header = _exports['load_header']
+load_source = _exports['load_source']
 
 # Functions that accept 'data' string, and optionally
 # 'file_path' and 'import_path'
-parse_source = _exports['parse_source']
 parse_header = _exports['parse_header']
+parse_source = _exports['parse_source']
 
+# Functions that accept 'file_path' and optionally
+# 'import_path'
+parse_header_file = _exports['parse_header_file']
+parse_source_file = _exports['parse_source_file']
 
 @test.case
 def test_blob():
