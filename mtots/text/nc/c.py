@@ -55,7 +55,6 @@ def gen_header(builder):
             parts.append(gen_header(imp))
         for decl in header.decls:
             parts.append(gen_header(decl))
-        parts.append('\n')
         return ''.join(parts)
 
     @builder.on(ast.AngleBracketImport)
@@ -73,7 +72,7 @@ def gen_header(builder):
 
     @builder.on(ast.FunctionDeclaration)
     def gen(decl):
-        return f'{declare(decl)};'
+        return f'{declare(decl)};\n'
 
 
 
