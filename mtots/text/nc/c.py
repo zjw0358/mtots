@@ -89,6 +89,7 @@ def sample_test():
         """)),
         r"""// <string>
 #include <stdio.h>
-int main();""",
+int main();
+""",
     )
 
