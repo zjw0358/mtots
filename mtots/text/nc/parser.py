@@ -1,3 +1,12 @@
+"""
+There are 4 main functions from this file for parsing nc source:
+
+    load_header(import_path)
+    load_source(import_path)
+    parse_header(data, file_path='<string>', import_path='__main__')
+    parse_source(data, file_path='<string>', import_path='__main__')
+
+"""
 from . import ast
 from . import errors
 from . import lexer
