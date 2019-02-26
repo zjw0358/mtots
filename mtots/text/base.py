@@ -112,6 +112,13 @@ class Node:
         repr=False,
     )
 
+    @staticmethod
+    def dict(node):
+        args = {'mark': node.mark}
+        for field_name in type(node).__dataclass_fields__:
+            args[field_name] = getattr(node, field_name)
+        return args
+
 
 class Pattern(typing.NamedTuple):
     regex: typing.Pattern

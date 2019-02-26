@@ -115,84 +115,31 @@ class FunctionDefinition(FunctionDeclaration, Definition):
 
 
 class StatementOrExpression(Node, metaclass=abc.ABCMeta):
-
-    @classmethod
-    def _recursively_annotate(cls, node, scope):
-        if isinstance(node, Node):
-            if isinstance(node, Block):
-                inner_scope = Scope(scope)
-            else:
-                inner_scope = scope
-
-            for field_name in type(node).__dataclass_fields__:
-                field = getattr(node, field_name)
-                cls._recursively_annotate(field, inner_scope)
-
-            if isinstance(node, (Statement, Expression)):
-                node._annotate(inner_scope)
-
-        elif isinstance(node, (list, tuple, set, frozenset)):
-            for child in node:
-                cls._recursively_annotate(child, scope)
-
-        elif isinstance(node, dict):
-            for key, value in node.items():
-                cls._recursively_annotate(key, scope)
-                cls._recursively_annotate(value, scope)
-
-        elif node is None or isinstance(node, (bool, int, float, str, Type)):
-            # If we see a scalar, nothing to do
-            pass
-
-        else:
-            raise TypeError(node)
-
-    def annotate(self, scope):
-        StatementOrExpression._recursively_annotate(self, scope)
+    pass
 
 
 class Statement(StatementOrExpression):
-    _rstates = None  # return states (Set[ReturnState])
-
-    def _annotate(self, scope):
-        if self._rstates is None:
-            self._rstates = frozenset(self._get_return_states(scope))
-
-    @abc.abstractmethod
-    def _get_return_states(self, scope):
-        pass
-
-    @property
-    def rstates(self):
-        if self._rstates is None:
-            raise TypeError(f'.rstates accessed before annotate called')
-        return self._rstates
+    # This is required of all 'Statement' subclasses,
+    # but if we declare Statement a dataclass, we get
+    # issues with creating constructor because of
+    # default arguments being not allowed before
+    # non-default arguments.
+    rstates: typing.Set[ReturnState]
 
 
 class Expression(StatementOrExpression):
-    _type = None
-
-    def _annotate(self, scope):
-        if self._type is None:
-            self._type = self._get_type(scope)
-
-    @property
-    def type(self):
-        if self._type is None:
-            raise TypeError(f'.type accessed before annotate called')
-        return self._type
-
-    @abc.abstractmethod
-    def _get_type(self, scope):
-        pass
+    # This is required of all 'Expression' subclasses,
+    # but if we declare Expression a dataclass, we get
+    # issues with creating constructor because of
+    # default arguments being not allowed before
+    # non-default arguments.
+    type: Type
 
 
 @util.dataclass
 class ExpressionStatement(Statement):
     expr: Expression
-
-    def _get_return_states(self, scope):
-        return {NoReturn()}
+    rstates: typing.Set[ReturnState] = None
 
 
 @util.dataclass
@@ -200,119 +147,58 @@ class If(Statement):
     cond: Expression
     body: Statement
     other: typing.Optional[Statement]
-
-    def _get_return_states(self, scope):
-        return (
-            self.body.rstates |
-            (self.other.rstates if self.other else {NoReturn()})
-        )
+    rstates: typing.Set[ReturnState] = None
 
 
 @util.dataclass
 class While(Statement):
     cond: Expression
     body: Statement
-
-    def _get_return_states(self, scope):
-        return {NoReturn()} | self.body.rstates
+    rstates: typing.Set[ReturnState] = None
 
 
 @util.dataclass
 class Return(Statement):
     expr: typing.Optional[Expression]
-
-    def _get_return_states(self, scope):
-        return {Returns(self.expr.type)}
+    rstates: typing.Set[ReturnState] = None
 
 
 @util.dataclass
 class Block(Statement):
     stmts: typing.List[Statement]
-
-    def _get_return_states(self, scope):
-        for stmt in self.stmts:
-            stmt.annotate(scope)
-
-        nr = NoReturn()
-        stmts = self.stmts
-        rstates = {nr}
-        for i, stmt in enumerate(stmts):
-            if i and nr not in stmts[i - 1].rstates:
-                raise errors.TypeError([stmt.mark], f'Unrechable statement')
-            rstates |= stmt.rstates
-        if stmts and nr not in stmts[len(stmts) - 1].rstates:
-            rstates.discard(nr)
-        return rstates
+    rstates: typing.Set[ReturnState] = None
 
 
 @util.dataclass
 class IntLiteral(Expression):
     value: int
-
-    def _get_type(self, scope):
-        return types.INT
+    type: Type = types.INT
 
 
 @util.dataclass
 class StringLiteral(Expression):
     value: str
-
-    def _get_type(self, scope):
-        return types.PointerType(types.ConstType(types.CHAR))
+    type: Type = types.PointerType(types.ConstType(types.CHAR))
 
 
 @util.dataclass
 class GetVariable(Expression):
-    var: Declaration
-
-    def _get_type(self, scope):
-        return self.var.type
+    name: str
+    var: Declaration = None
+    type: Type = None
 
 
 @util.dataclass
 class SetVariable(Expression):
-    var: Declaration
+    name: str
     expr: Expression
-
-    def _get_type(self, scope):
-        return self.var.type
+    var: Declaration = None
+    type: Type = None
 
 
 @util.dataclass
 class FunctionCall(Expression):
     name: str
     args: typing.List[Expression]
-    _decl = None  # FunctionDeclaration
-
-    def _get_type(self, scope):
-        decl = scope.get(self.name, [self.mark])
-        if not isinstance(decl, FunctionDeclaration):
-            raise errors.TypeError(
-                [self.mark, decl.mark],
-                f'{self.name} is not a function',
-            )
-        self._check_params(decl)
-        return decl.rtype
-
-    def _check_params(self, decl):
-        if decl.varargs:
-            if len(decl.params) < len(self.args):
-                raise errors.TypeError(
-                    [self.mark, decl.mark],
-                    f'Expected at least {len(decl.params)} args '
-                    f'but got {len(self.args)} args.'
-                )
-        else:
-            if len(decl.params) != len(self.args):
-                raise errors.TypeError(
-                    [self.mark, decl.mark],
-                    f'Expected {len(decl.params)} args '
-                    f'but got {len(self.args)} args.'
-                )
-        for param, arg in zip(decl.params, self.args):
-            if not types.convertible(arg.type, param.type):
-                raise errors.TypeError(
-                    [arg.mark, param.mark],
-                    f'Expected type {param.type} but got {arg.type}',
-                )
-
+    decl: FunctionDeclaration = None
+    type: Type = None

@@ -12,6 +12,7 @@ There are 6 main functions from this file for parsing nc source:
 from . import ast
 from . import errors
 from . import lexer
+from . import resolver
 from . import types
 from .scopes import Scope
 from mtots import test
@@ -259,12 +260,22 @@ def source_callback(m):
                 scope.set(decl.name, decl, [])
     for decl in decls:
         scope.set(decl.name, decl, [])
+
+    new_decls = []
     for decl in decls:
         if isinstance(decl, ast.FunctionDefinition):
-            decl.body.annotate(scope)
-    return m.value
+            kwargs = base.Node.dict(decl)
+            kwargs['body'] = resolver.resolve(kwargs['body'], scope)
+            new_decls.append(ast.FunctionDefinition(**kwargs))
+        else:
+            new_decls.append(decl)
 
-    return source_callback
+    return ast.Source(
+        mark=m.value.mark,
+        imports=m.value.imports,
+        decls=new_decls,
+    )
+
 
 source = Forward(lambda: All(
     import_stmt.repeat(),
