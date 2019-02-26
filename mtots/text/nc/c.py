@@ -18,6 +18,13 @@ def source_path_from_import_path(import_path):
 @util.multimethod(1)
 def declare(builder):
 
+    def n(name):
+        """Convert to C name.
+        Most names translate to just themselves, except for
+        names with '$' in them.
+        """
+        return name.replace('$', 'NCIDXXX')
+
     @builder.on(types._PrimitiveType)
     def builder(type, name):
         return f'{type.name} {name}'
@@ -46,7 +53,7 @@ def declare(builder):
                 varargs = '...'
         else:
             varargs = ''
-        return declare(decl.rtype, f'{decl.name}({params}{varargs})')
+        return declare(decl.rtype, f'{n(decl.name)}({params}{varargs})')
 
     @builder.on(types.FunctionType)
     def builder(type, name):
@@ -158,7 +165,7 @@ def gen_source(builder):
     @builder.on(ast.FunctionCall)
     def gen(node):
         args = ', '.join(map(gen_source, node.args))
-        return f'{node.name}({args})'
+        return f'{n(node.name)}({args})'
 
     _ESCAPE_MAP = {
         '\b': 'b',
