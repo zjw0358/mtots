@@ -7,6 +7,14 @@ from mtots import test
 from mtots import util
 
 
+def guard_from_import_path(import_path):
+    return import_path.replace('.', '_').upper() + '_NC'
+
+
+def forward_path_from_import_path(import_path):
+    return import_path + '.nc.fwd.h'
+
+
 def header_path_from_import_path(import_path):
     return import_path + '.nc.h'
 
@@ -15,15 +23,16 @@ def source_path_from_import_path(import_path):
     return import_path + '.nc.c'
 
 
+def _n(name):
+    """Convert to C name.
+    Most names translate to just themselves, except for
+    names with '$' in them.
+    """
+    return name.replace('$', 'NCIDXXX')
+
+
 @util.multimethod(1)
 def declare(builder):
-
-    def n(name):
-        """Convert to C name.
-        Most names translate to just themselves, except for
-        names with '$' in them.
-        """
-        return name.replace('$', 'NCIDXXX')
 
     @builder.on(types._PrimitiveType)
     def builder(type, name):
@@ -53,7 +62,7 @@ def declare(builder):
                 varargs = '...'
         else:
             varargs = ''
-        return declare(decl.rtype, f'{n(decl.name)}({params}{varargs})')
+        return declare(decl.rtype, f'{_n(decl.name)}({params}{varargs})')
 
     @builder.on(types.FunctionType)
     def builder(type, name):
@@ -69,15 +78,38 @@ def declare(builder):
 
 
 @util.multimethod(1)
+def gen_forward(builder):
+
+    @builder.on(ast.Header)
+    def gen(header):
+        guard = guard_from_import_path(header.import_path) + '_FWDH'
+        parts = [
+            f'#ifndef {guard}\n',
+            f'#define {guard}\n',
+            f'/* (NC FORWARD HEADER) {header.import_path} */\n',
+        ]
+        parts.append(f'#endif/*{guard}*/\n')
+        return ''.join(parts)
+
+
+@util.multimethod(1)
 def gen_header(builder):
 
     @builder.on(ast.Header)
     def gen(header):
-        parts = [f'// (NC HEADER) {header.import_path}\n']
+        guard = guard_from_import_path(header.import_path) + '_H'
+        forward_path = forward_path_from_import_path(header.import_path)
+        parts = [
+            f'#ifndef {guard}\n',
+            f'#define {guard}\n',
+            f'/* (NC HEADER) {header.import_path} */\n',
+            f'#include "{forward_path}"\n',
+        ]
         for imp in header.imports:
             parts.append(gen_header(imp))
         for decl in header.decls:
             parts.append(gen_header(decl))
+        parts.append(f'#endif/*{guard}*/\n')
         return ''.join(parts)
 
     @builder.on(ast.AngleBracketImport)
@@ -90,8 +122,8 @@ def gen_header(builder):
 
     @builder.on(ast.AbsoluteImport)
     def gen(imp):
-        header_path = header_path_from_import_path(imp.path)
-        return f'#include "{header_path}"\n'
+        forward_path = forward_path_from_import_path(imp.path)
+        return f'#include "{forward_path}"\n'
 
     @builder.on(ast.FunctionDeclaration)
     def gen(decl):
@@ -114,15 +146,30 @@ def gen_source(builder):
         file_path = source.mark.source.path
         assert '"' not in file_path, file_path
         parts = [
-            f'// (NC SOURCE) {import_path}\n',
+            f'/* (NC SOURCE) {import_path} */\n',
             f'#include "{header_path}"\n',
             f'#line 1 "{file_path}"\n',
         ]
+        for imp in source.imports:
+            parts.append(gen_source(imp))
         for decl in source.decls:
             if isinstance(decl, ast.Definition):
                 _add_lineno(decl, parts)
                 parts.append(gen_source(decl))
         return ''.join(parts)
+
+    @builder.on(ast.AngleBracketImport)
+    def gen(imp):
+        return ''  # already included in header
+
+    @builder.on(ast.QuoteImport)
+    def gen(imp):
+        return ''  # already included in header
+
+    @builder.on(ast.AbsoluteImport)
+    def gen(imp):
+        header_path = header_path_from_import_path(imp.path)
+        return f'#include "{header_path}"\n'
 
     @builder.on(ast.FunctionDefinition)
     def gen(defn):
@@ -165,7 +212,7 @@ def gen_source(builder):
     @builder.on(ast.FunctionCall)
     def gen(node):
         args = ', '.join(map(gen_source, node.args))
-        return f'{n(node.name)}({args})'
+        return f'{_n(node.name)}({args})'
 
     _ESCAPE_MAP = {
         '\b': 'b',

@@ -42,10 +42,16 @@ def main():
             source = parser.load_source(import_path)
             header = parser.load_header(import_path)
 
+        forward_path = c.forward_path_from_import_path(import_path)
         header_path = c.header_path_from_import_path(import_path)
         source_path = c.source_path_from_import_path(import_path)
+        full_forward_path = os.path.join(GENERATED_C_DIR, forward_path)
         full_header_path = os.path.join(GENERATED_C_DIR, header_path)
         full_source_path = os.path.join(GENERATED_C_DIR, source_path)
+
+        c_forward_data = c.gen_forward(header)
+        with open(full_forward_path, 'w') as f:
+            f.write(c_forward_data)
 
         c_header_data = c.gen_header(header)
         with open(full_header_path, 'w') as f:
