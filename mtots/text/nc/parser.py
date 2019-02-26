@@ -371,7 +371,7 @@ def _make_exports():
             data = f.read()
         return _make_base_source(
             data=data,
-            file_path=file_path,
+            file_path=os.path.realpath(file_path),
             import_path=import_path,
         )
 

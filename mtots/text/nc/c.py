@@ -97,24 +97,32 @@ def gen_source(builder):
     def _make_indent(depth):
         return '  ' * depth
 
+    def _add_lineno(node, buf):
+        buf.append(f'#line {node.mark.lineno}\n')
+
     @builder.on(ast.Source)
     def gen(source):
         import_path = source.import_path
         header_path = header_path_from_import_path(import_path)
+        file_path = source.mark.source.path
+        assert '"' not in file_path, file_path
         parts = [
             f'// (NC SOURCE) {import_path}\n',
             f'#include "{header_path}"\n',
+            f'#line 1 "{file_path}"\n',
         ]
         for decl in source.decls:
             if isinstance(decl, ast.Definition):
+                _add_lineno(decl, parts)
                 parts.append(gen_source(decl))
         return ''.join(parts)
 
     @builder.on(ast.FunctionDefinition)
     def gen(defn):
-        buffer = [
+        buffer = []
+        buffer.extend([
             declare(defn), ' ',
-        ]
+        ])
         gen_source(defn.body, buffer, 0, first_indent=False)
         return ''.join(buffer)
 
@@ -125,6 +133,7 @@ def gen_source(builder):
             buf.append(indent)
         buf.append('{\n')
         for stmt in block.stmts:
+            _add_lineno(stmt, buf)
             gen_source(stmt, buf, depth + 1)
         buf.append(indent + '}\n')
 
