@@ -81,14 +81,17 @@ def declare(builder):
 def gen_forward(builder):
 
     @builder.on(ast.Header)
-    def gen(header):
+    def gen(header, *, includes=True):
         guard = guard_from_import_path(header.import_path) + '_FWDH'
-        parts = [
-            f'#ifndef {guard}\n',
-            f'#define {guard}\n',
-            f'/* (NC FORWARD HEADER) {header.import_path} */\n',
-        ]
-        parts.append(f'#endif/*{guard}*/\n')
+        parts = []
+        if includes:
+            parts.extend([
+                f'#ifndef {guard}\n',
+                f'#define {guard}\n',
+                f'/* (NC FORWARD HEADER) {header.import_path} */\n',
+            ])
+        if includes:
+            parts.append(f'#endif/*{guard}*/\n')
         return ''.join(parts)
 
 
@@ -96,20 +99,23 @@ def gen_forward(builder):
 def gen_header(builder):
 
     @builder.on(ast.Header)
-    def gen(header):
+    def gen(header, *, includes=True):
         guard = guard_from_import_path(header.import_path) + '_H'
         forward_path = forward_path_from_import_path(header.import_path)
-        parts = [
-            f'#ifndef {guard}\n',
-            f'#define {guard}\n',
-            f'/* (NC HEADER) {header.import_path} */\n',
-            f'#include "{forward_path}"\n',
-        ]
-        for imp in header.imports:
-            parts.append(gen_header(imp))
+        parts = []
+        if includes:
+            parts.extend([
+                f'#ifndef {guard}\n',
+                f'#define {guard}\n',
+                f'/* (NC HEADER) {header.import_path} */\n',
+                f'#include "{forward_path}"\n',
+            ])
+            for imp in header.imports:
+                parts.append(gen_header(imp))
         for decl in header.decls:
             parts.append(gen_header(decl))
-        parts.append(f'#endif/*{guard}*/\n')
+        if includes:
+            parts.append(f'#endif/*{guard}*/\n')
         return ''.join(parts)
 
     @builder.on(ast.AngleBracketImport)
@@ -136,26 +142,35 @@ def gen_source(builder):
     def _make_indent(depth):
         return '  ' * depth
 
-    def _add_lineno(node, buf):
-        buf.append(f'#line {node.mark.lineno}\n')
+    def _add_lineno(node, buf, debug_info):
+        if debug_info:
+            buf.append(f'#line {node.mark.lineno}\n')
 
     @builder.on(ast.Source)
-    def gen(source):
+    def gen(source, *, includes=True, debug_info=True):
         import_path = source.import_path
         header_path = header_path_from_import_path(import_path)
         file_path = source.mark.source.path
         assert '"' not in file_path, file_path
-        parts = [
-            f'/* (NC SOURCE) {import_path} */\n',
-            f'#include "{header_path}"\n',
-            f'#line 1 "{file_path}"\n',
-        ]
-        for imp in source.imports:
-            parts.append(gen_source(imp))
+        parts = []
+
+        if includes:
+            parts.extend([
+                f'/* (NC SOURCE) {import_path} */\n',
+                f'#include "{header_path}"\n',
+            ])
+
+        if debug_info:
+            parts.append(f'#line 1 "{file_path}"\n')
+
+        if includes:
+            for imp in source.imports:
+                parts.append(gen_source(imp))
+
         for decl in source.decls:
             if isinstance(decl, ast.Definition):
-                _add_lineno(decl, parts)
-                parts.append(gen_source(decl))
+                _add_lineno(decl, parts, debug_info)
+                parts.append(gen_source(decl, debug_info=debug_info))
         return ''.join(parts)
 
     @builder.on(ast.AngleBracketImport)
@@ -172,33 +187,39 @@ def gen_source(builder):
         return f'#include "{header_path}"\n'
 
     @builder.on(ast.FunctionDefinition)
-    def gen(defn):
+    def gen(defn, *, debug_info):
         buffer = []
         buffer.extend([
             declare(defn), ' ',
         ])
-        gen_source(defn.body, buffer, 0, first_indent=False)
+        gen_source(
+            defn.body,
+            buffer,
+            0,
+            first_indent=False,
+            debug_info=debug_info,
+        )
         return ''.join(buffer)
 
     @builder.on(ast.Block)
-    def gen(block, buf, depth, first_indent=True):
+    def gen(block, buf, depth, *, debug_info, first_indent=True):
         indent = _make_indent(depth)
         if first_indent:
             buf.append(indent)
         buf.append('{\n')
         for stmt in block.stmts:
-            _add_lineno(stmt, buf)
-            gen_source(stmt, buf, depth + 1)
+            _add_lineno(stmt, buf, debug_info=debug_info)
+            gen_source(stmt, buf, depth + 1, debug_info=debug_info)
         buf.append(indent + '}\n')
 
     @builder.on(ast.ExpressionStatement)
-    def gen(ret, buf, depth):
+    def gen(ret, buf, depth, *, debug_info):
         buf.append(_make_indent(depth))
         buf.append(gen_source(ret.expr))
         buf.append(';\n')
 
     @builder.on(ast.Return)
-    def gen(ret, buf, depth):
+    def gen(ret, buf, depth, *, debug_info):
         buf.append(_make_indent(depth))
         if ret.expr:
             buf.append(f'return {gen_source(ret.expr)};\n')
@@ -249,9 +270,13 @@ def sample_test():
             return 0;
         }
         """)),
-        r"""// (NC HEADER) __main__
+        r"""#ifndef __MAIN___NC_H
+#define __MAIN___NC_H
+/* (NC HEADER) __main__ */
+#include "__main__.nc.fwd.h"
 #include <stdio.h>
 int main();
+#endif/*__MAIN___NC_H*/
 """,
     )
 

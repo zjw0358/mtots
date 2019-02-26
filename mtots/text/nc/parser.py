@@ -156,15 +156,15 @@ struct_field = All(
 ))
 
 struct_defn = All(
-    Any('native').optional().map(bool),      # 0: native
-    'struct',                                # 1
-    'ID',                                    # 2: name
-    '{',                                     # 3
-    struct_field.repeat(),                   # 4: fields
-    '}',                                     # 5
+    Any('native').optional(),      # 0: native
+    'struct',                      # 1
+    'ID',                          # 2: name
+    '{',                           # 3
+    struct_field.repeat(),         # 4: fields
+    '}',                           # 5
 ).fatmap(lambda m: ast.StructDefinition(
     mark=m.mark,
-    native=m.value[0],
+    native=bool(m.value[0]),
     name=m.value[2],
     fields=m.value[4],
 ))
@@ -203,17 +203,19 @@ func_modifiers = Any(
 )
 
 func_proto = All(
-    type_ref,        # 0: return type
-    'ID',            # 1: name
-    func_modifiers,  # 2: function modifiers/attributes
-    func_params,     # 3: parameters
+    Any('native').optional(),   # 0: native
+    type_ref,                   # 1: return type
+    'ID',                       # 2: name
+    func_modifiers,             # 3: function modifiers/attributes
+    func_params,                # 4: parameters
 ).fatmap(lambda m: ast.FunctionDeclaration(
     mark=m.mark,
-    rtype=m.value[0],
-    name=m.value[1],
-    attrs=m.value[2],
-    params=m.value[3]['params'],
-    varargs=m.value[3]['varargs'],
+    native=bool(m.value[0]),
+    rtype=m.value[1],
+    name=m.value[2],
+    attrs=m.value[3],
+    params=m.value[4]['params'],
+    varargs=m.value[4]['varargs'],
 ))
 
 func_decl = All(func_proto, ';').map(lambda args: args[0])
@@ -241,6 +243,7 @@ func_defn = Forward(lambda: All(
     block.required(),
 )).fatmap(lambda m: ast.FunctionDefinition(
     mark=m.mark,
+    native=m.value[0].native,
     rtype=m.value[0].rtype,
     name=m.value[0].name,
     attrs=m.value[0].attrs,
@@ -679,6 +682,7 @@ def test_func_decl():
             None,
             ast.FunctionDeclaration(
                 mark=None,
+                native=False,
                 name='foo',
                 params=[
                     ast.Param(None, 'b', types.NamedType('Bar')),
@@ -698,6 +702,7 @@ def test_func_decl():
             None,
             ast.FunctionDeclaration(
                 mark=None,
+                native=False,
                 name='foo',
                 params=[
                     ast.Param(None, 'b', types.NamedType('Bar')),
@@ -717,6 +722,7 @@ def test_func_decl():
             None,
             ast.FunctionDeclaration(
                 mark=None,
+                native=False,
                 name='foo',
                 params=[
                     ast.Param(None, 'b', types.NamedType('Bar')),
@@ -756,6 +762,7 @@ def test_header():
                 decls=[
                     ast.FunctionDeclaration(
                         None,
+                        native=False,
                         rtype=types.INT,
                         name='main',
                         params=[],
@@ -764,6 +771,7 @@ def test_header():
                     ),
                     ast.FunctionDeclaration(
                         None,
+                        native=False,
                         rtype=types.VOID,
                         name='print',
                         attrs=[],
@@ -806,6 +814,7 @@ def test_source():
                 decls=[
                     ast.FunctionDefinition(
                         None,
+                        native=False,
                         name='main',
                         rtype=types.INT,
                         attrs=[],
@@ -832,6 +841,7 @@ def test_source():
                     ),
                     ast.FunctionDeclaration(
                         None,
+                        native=False,
                         name='print',
                         rtype=types.VOID,
                         attrs=[],
@@ -891,6 +901,7 @@ on line 3
                 decls=[
                     ast.FunctionDefinition(
                         None,
+                        native=False,
                         name='main',
                         rtype=types.INT,
                         attrs=[],

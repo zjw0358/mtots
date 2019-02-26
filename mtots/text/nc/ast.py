@@ -104,6 +104,7 @@ class Param(VariableDeclaration, Definition):
 
 @util.dataclass(frozen=True)
 class FunctionDeclaration(GlobalDeclaration):
+    native: bool
     rtype: Type
     attrs: typing.List[str]
     params: typing.List['Param']
