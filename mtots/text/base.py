@@ -105,7 +105,7 @@ class Error(Exception):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Node:
     mark: typing.Optional[Mark] = dataclasses.field(
         compare=False,
