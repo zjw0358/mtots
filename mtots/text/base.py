@@ -409,7 +409,7 @@ def test_sample_lexer():
     )
 
     @test.throws(Error, """Unrecognized token
-on line 1
+<string> line 1
 &
 *
 """)

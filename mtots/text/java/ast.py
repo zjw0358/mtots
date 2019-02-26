@@ -3,25 +3,25 @@ from mtots.util.dataclasses import dataclass
 from typing import List, Optional
 
 
-@dataclass
+@dataclass(frozen=True)
 class CompilationUnit(base.Node):
     package_declaration: 'PackageDeclaration'
     import_declarations: List['ImportDeclaration']
     type_declarations: List['TypeDeclaration']
 
 
-@dataclass
+@dataclass(frozen=True)
 class PackageDeclaration(base.Node):
     name: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class ImportDeclaration(base.Node):
     static: bool
     pattern: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class TypeDeclaration(base.Node):
     # NOTE: Technically, you can mix annotations and
     # simple modifiers, but this is not common practice,
@@ -34,17 +34,17 @@ class Modifier(base.Node):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class SimpleModifier(Modifier):
     name: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Annotation(Modifier):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class ClassDeclaration(TypeDeclaration):
     type_parameters: List['TypeParameter']
     super: Optional[str]
@@ -52,7 +52,7 @@ class ClassDeclaration(TypeDeclaration):
     body: List['ClassBodyDeclaration']
 
 
-@dataclass
+@dataclass(frozen=True)
 class Block(base.Node):
     "Executable Java statements, but unparsed as text"
     pass

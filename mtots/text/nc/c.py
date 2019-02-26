@@ -195,7 +195,7 @@ def sample_test():
             return 0;
         }
         """)),
-        r"""// <string>
+        r"""// (NC HEADER) __main__
 #include <stdio.h>
 int main();
 """,
