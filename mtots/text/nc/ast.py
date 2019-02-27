@@ -50,11 +50,17 @@ class RawNameType(Type):
 
 
 @util.dataclass(frozen=True)
-class StructType(Type):
-    defn: 'StructDefinition'
+class NativeType(Type):
+    """Unknown whether it is a struct type or some typedef,
+    but declared in the raw C code, and not a native type.
+    E.g. size_t.
+    """
+    name: str
 
-    def __repr__(self):
-        return f'struct {self.defn.name}'
+
+@util.dataclass(frozen=True)
+class StructType(Type):
+    name: str
 
 
 @util.dataclass(frozen=True)
@@ -87,6 +93,22 @@ class Node(base.Node):
 
 class GlobalStatement(Node):
     pass
+
+
+@util.dataclass(frozen=True)
+class Include(GlobalStatement):
+    quotes: bool
+    path: str
+
+
+@util.dataclass(frozen=True)
+class Import(GlobalStatement):
+    path: str
+
+
+@util.dataclass(frozen=True)
+class NativeTypedef(GlobalStatement):
+    name: str
 
 
 class Statement(Node):
