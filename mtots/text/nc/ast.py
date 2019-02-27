@@ -121,7 +121,7 @@ class Field(Node):
 class StructDefinition(GlobalStatement):
     native: str
     name: str
-    fields: TUPLE[Field]
+    fields: TUPLE(Field)
 
 
 @util.dataclass(frozen=True)
