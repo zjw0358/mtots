@@ -61,7 +61,10 @@ include_stmt = Any(
 
 import_stmt = All(
     'import',
-    Any('ID').join('.').map('.'.join),
+    All(
+        'ID',
+        All('.', 'ID').map(lambda args: args[1]).repeat(),
+    ).map(lambda args: '.'.join([args[0]] + args[1])),
 ).fatmap(lambda m: ast.Import(
     mark=m.mark,
     path=m.value[1],
@@ -141,6 +144,7 @@ def test_phase1():
         parse_phase1("""
             import <stdio.h>
             import a.b.c
+            import x
 
             struct Foo {
                 Foo foo;
@@ -152,8 +156,8 @@ def test_phase1():
         """),
         Phase1(
             imports=[
-                ast.Import(None, path=''),
                 ast.Import(None, path='a.b.c'),
+                ast.Import(None, path='x'),
             ],
             types={
                 'Foo': ast.StructDefinition(
