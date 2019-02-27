@@ -12,6 +12,10 @@ Full parsing is split into 3 phases:
     * phase 3 (full source):
         Using result from phase 2, fully parse everything
 
+# TODO: Create the parsers inside closures for phase 2 and phase 3
+# so that the parser can capture the output of previous phases
+# easily
+
 """
 from . import ast
 from . import errors
