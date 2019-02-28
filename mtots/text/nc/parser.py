@@ -28,18 +28,23 @@ from mtots.text.combinator import AnyTokenBut
 from mtots.text.combinator import Forward
 from mtots.text.combinator import Peek
 from mtots.text.combinator import Token
+from mtots.util import Scope
 import os
 import typing
 
 
-# Useful for skipping blocks of code
-# for the header parser
-blob = Forward(lambda: Any(
-    brace_blob,
-    AnyTokenBut('{', '}'),
-))
+_source_root = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    'root',
+)
 
-brace_blob = All('{', blob.repeat(), '}')
+
+def _import_path_to_file_path(import_path):
+    return os.path.join(
+        _source_root,
+        import_path.replace('.', os.path.sep) + '.nc',
+    )
+
 
 include_stmt = Any(
     # C header imports with angle brackets, e.g.
@@ -81,15 +86,6 @@ native_typedef = All(
     name=m.value[2],
 ))
 
-phase1_struct_def = All(
-    'struct', 'ID',
-).fatmap(lambda m: ast.StructDefinition(
-    mark=m.mark,
-    native=None,
-    name=m.value[1],
-    fields=None,
-))
-
 
 class Phase1(typing.NamedTuple):
     imports: typing.Tuple[ast.Import, ...]
@@ -97,27 +93,6 @@ class Phase1(typing.NamedTuple):
         ast.StructDefinition,
         ast.NativeTypedef,
     ]]
-
-
-def _phase1_callback(m):
-    imports = []
-    types = {}
-    for node in m.value:
-        if isinstance(node, ast.Import):
-            imports.append(node)
-        elif isinstance(node, (ast.StructDefinition, ast.NativeTypedef)):
-            types[node.name] = node
-        else:
-            raise TypeError(node)
-    return Phase1(imports=imports, types=types)
-
-
-phase1_parser = Any(
-    All(import_stmt),
-    All(phase1_struct_def),
-    All(native_typedef),
-    blob.map(lambda x: []),
-).repeat().flatten().fatmap(_phase1_callback)
 
 
 def _parse_pattern(pattern, data, file_path, import_path):
@@ -133,13 +108,97 @@ def _parse_pattern(pattern, data, file_path, import_path):
     return match_result.value
 
 
-def parse_phase1(data, *, file_path='<string>', import_path='__main__'):
-    return _parse_pattern(
-        pattern=phase1_parser,
-        data=data,
-        file_path=file_path,
-        import_path=import_path,
+def _make_phase1_parse_functions():
+
+    def _phase1_callback(m):
+        imports = []
+        types = {}
+        for node in m.value:
+            if isinstance(node, ast.Import):
+                imports.append(node)
+            elif isinstance(node, (ast.StructDefinition, ast.NativeTypedef)):
+                types[node.name] = node
+            else:
+                raise TypeError(node)
+        return Phase1(imports=imports, types=types)
+
+    # Useful for skipping blocks of code
+    blob = Forward(lambda: Any(
+        brace_blob,
+        AnyTokenBut('{', '}'),
+    ))
+
+    brace_blob = All('{', blob.repeat(), '}')
+
+    phase1_struct_def = All(
+        'struct', 'ID',
+    ).fatmap(lambda m: ast.StructDefinition(
+        mark=m.mark,
+        native=None,
+        name=m.value[1],
+        fields=None,
+    ))
+
+    phase1_parser = Any(
+        All(import_stmt),
+        All(phase1_struct_def),
+        All(native_typedef),
+        blob.map(lambda x: []),
+    ).repeat().flatten().fatmap(_phase1_callback)
+
+    def parse_phase1(data, *, file_path='<string>', import_path='__main__'):
+        return _parse_pattern(
+            pattern=phase1_parser,
+            data=data,
+            file_path=file_path,
+            import_path=import_path,
+        )
+
+
+    def read_phase1(file_path, *, import_path='__main__'):
+        with open(file_path) as f:
+            data = f.read()
+        return parse_phase1(
+            data,
+            file_path=file_path,
+            import_path=import_path,
+        )
+
+    _phase1_cache = {}
+
+
+    def load_phase1(import_path):
+        if import_path not in _phase1_cache:
+            file_path = _import_path_to_file_path(import_path)
+            _phase1_cache[import_path] = read_phase1(
+                file_path,
+                import_path=import_path,
+            )
+
+    return (
+        parse_phase1,
+        read_phase1,
+        load_phase1,
     )
+
+parse_phase1, read_phase1, load_phase1 = _make_phase1_parse_functions()
+
+
+def _update_scope(scope, other_scope):
+    for key in other_scope:
+        if key in scope:
+            raise base.Error(
+                [scope[key].mark, other_scope[key].mark],
+                f'Duplicate definition {key}'
+            )
+        scope[key] = other_scope[key]
+
+
+def new_phase2_parser(phase1: Phase1):
+    type_dict = {}
+    for imp in phase1.imports:
+        _update_scope(type_dict, load_phase1(imp.path).types)
+    _update_scope(type_dict, phase1.types)
 
 
 @test.case
