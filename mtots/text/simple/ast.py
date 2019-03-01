@@ -6,7 +6,19 @@ from mtots.util import dataclasses
 import typing
 
 
-TUPLE = lambda type: typing.Tuple[type, ...]
+# Name of the module that is always implicitly included
+PRELUDE = 'prelude'
+
+# Set of symbols that are implicitly imported in all
+# modules but PRELUDE itself
+PRELUDE_SYMBOLS = {
+    'Object',
+    'print',
+    'String',
+}
+
+# Name of the ancestor of all classes
+OBJECT = f'{PRELUDE}.Object'
 
 
 @util.dataclass(frozen=True)
@@ -112,7 +124,7 @@ class IntLiteral(Expression):
 @util.dataclass(frozen=True)
 class StringLiteral(Expression):
     value: str
-    type = types.ClassType('lang.String')
+    type = types.ClassType(f'{PRELUDE}.String')
 
 
 @util.dataclass(frozen=True)

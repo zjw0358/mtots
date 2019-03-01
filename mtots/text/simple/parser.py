@@ -41,6 +41,27 @@ import_stmt = All(
     alias=m.value[1].split('.')[-1] if m.value[2] is None else m.value[2],
 ))
 
+_prelude_table = {
+    symbol: f'{ast.PRELUDE}.{symbol}' for symbol in ast.PRELUDE_SYMBOLS
+}
+
+_builtin_mark = base.Mark(
+    source=base.Source(
+        path='<builtin>',
+        data='',
+    ),
+    start=0,
+    end=0,
+)
+
+_implicit_imports = tuple(
+    ast.Import(
+        mark=_builtin_mark,
+        alias=key,
+        name=value,
+    )
+    for key, value in _prelude_table.items()
+)
 
 _imports_only_parser = All(
     Any(import_stmt).repeat(),
@@ -63,8 +84,13 @@ def _parse_pattern(pattern, data, file_path, import_path):
     return match_result.value
 
 
-def _make_import_map(imports):
-    return {imp.alias: imp.name for imp in imports}
+def _make_import_map(*, imports, module_name):
+    all_imports = (
+        imports
+        if module_name == ast.PRELUDE else
+        (_implicit_imports + imports)
+    )
+    return {imp.alias: imp.name for imp in all_imports}
 
 
 def _make_importable_id(*, module_name, import_map):
@@ -77,19 +103,44 @@ def _make_exportable_id(*, module_name, import_map):
 
 
 def _make_module_parser(*, global_variable, function, class_, module_name):
-    return All(
-        import_stmt.repeat().map(tuple),
-        global_variable.repeat().map(tuple),
-        function.repeat().map(tuple),
-        class_.repeat().map(tuple),
-    ).fatmap(lambda m: ast.Module(
-        mark=m.mark,
-        name=module_name,
-        imports=m.value[0],
-        vars=m.value[1],
-        funcs=m.value[2],
-        clss=m.value[3],
-    ))
+
+    global_stmt = Any(
+        global_variable.map(lambda x: ('var', x)),
+        function.map(lambda x: ('func', x)),
+        class_.map(lambda x: ('cls', x)),
+    )
+
+    module_pattern = All(
+        import_stmt.map(lambda x: ('import', x)).repeat(),
+        global_stmt.repeat(),
+    ).flatten()
+
+    def module_callback(m):
+        imports = []
+        vars = []
+        funcs = []
+        clss = []
+        for kind, node in m.value:
+            if kind == 'import':
+                imports.append(node)
+            elif kind == 'var':
+                vars.append(node)
+            elif kind == 'func':
+                funcs.append(node)
+            elif kind == 'cls':
+                clss.append(node)
+            else:
+                raise base.Error([node.mark], f'FUBAR: {kind}: {node}')
+        return ast.Module(
+            mark=m.mark,
+            name=module_name,
+            imports=tuple(imports),
+            vars=tuple(vars),
+            funcs=tuple(funcs),
+            clss=tuple(clss),
+        )
+
+    return module_pattern.fatmap(module_callback)
 
 
 def _make_type_parser(*, importable_id, global_dict):
@@ -279,9 +330,9 @@ def _make_combined_parser(
         field_thunks = m.value[5]
         method_thunks = m.value[6]
         base = (
-            'lang.Object'
+            ast.OBJECT
             if declared_base is None
-                and class_name != 'lang.Object' else
+                and class_name != ast.OBJECT else
             declared_base
         )
         scope = Scope(module_scope)
@@ -329,7 +380,7 @@ def _make_combined_parser(
 def _make_header_parser(
         module_name: str,
         imports: typing.Tuple[ast.Import, ...]):
-    import_map = _make_import_map(imports)
+    import_map = _make_import_map(imports=imports, module_name=module_name)
     importable_id = _make_importable_id(
         module_name=module_name,
         import_map=import_map,
@@ -417,17 +468,11 @@ def parse_header(data, file_path='<string>', import_path='MAIN'):
     )
 
 
-def _get_all_globals(header: ast.Module, global_dict=None):
-    global_dict = {
-        '@modules': set(),
-    } if global_dict is None else global_dict
-
-    if header.name != 'lang' and 'lang' not in global_dict['@modules']:
-        _get_all_globals(load_header('lang'), global_dict)
-
+def _get_all_globals_without_prelude(header: ast.Module, global_dict):
     if header.name not in global_dict['@modules']:
         for imp in header.imports:
-            _get_all_globals(load_header(imp.module), global_dict)
+            _get_all_globals_without_prelude(
+                load_header(imp.module), global_dict)
         for node in header.vars + header.funcs + header.clss:
             if node.name in global_dict:
                 raise base.Error(
@@ -439,6 +484,15 @@ def _get_all_globals(header: ast.Module, global_dict=None):
     return global_dict
 
 
+def _get_all_globals(header: ast.Module):
+    global_dict = {
+        '@modules': set(),
+    }
+    _get_all_globals_without_prelude(load_header(ast.PRELUDE), global_dict)
+    _get_all_globals_without_prelude(header, global_dict)
+    return global_dict
+
+
 def _make_source_parser(module_name: str, header: ast.Module, global_dict):
 
     def ensure_global_exists(m):
@@ -447,7 +501,10 @@ def _make_source_parser(module_name: str, header: ast.Module, global_dict):
             raise base.Error([m.mark], f'Name {repr(name)} does not exist')
         return name
 
-    import_map = _make_import_map(header.imports)
+    import_map = _make_import_map(
+        imports=header.imports,
+        module_name=module_name,
+    )
     importable_id = _make_importable_id(
         module_name=module_name,
         import_map=import_map,
@@ -462,12 +519,10 @@ def _make_source_parser(module_name: str, header: ast.Module, global_dict):
         global_dict=global_dict,
     )
 
-    lang_table = {
-        'String': 'lang.String',
-        'print': 'lang.print',
+    module_scope = {
+        key: global_dict[val]
+        for key, val in _prelude_table.items()
     }
-
-    module_scope = {key: global_dict[val] for key, val in lang_table.items()}
     for imp in header.imports:
         if imp.name in global_dict:
             module_scope[imp.name] = global_dict[imp.name]
@@ -590,12 +645,12 @@ def _load_source(import_path, *, global_dict):
 
 
 def parse(data, file_path='<string>'):
-    module_names = {'MAIN'}
+    module_names = {'MAIN', ast.PRELUDE}
     queue = list(_parse_imports(
         data=data,
         file_path=file_path,
         import_path='MAIN',
-    )) + [ast.Import(mark=None, name='lang.String', alias='String')]
+    ))
     while queue:
         module_name = queue.pop().module
         if module_name not in module_names:
