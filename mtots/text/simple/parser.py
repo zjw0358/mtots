@@ -644,12 +644,12 @@ def _load_source(import_path, *, global_dict):
     )
 
 
-def parse(data, file_path='<string>'):
-    module_names = {'MAIN', ast.PRELUDE}
+def parse(data, file_path='<string>', import_path='MAIN'):
+    module_names = {import_path, ast.PRELUDE}
     queue = list(_parse_imports(
         data=data,
         file_path=file_path,
-        import_path='MAIN',
+        import_path=import_path,
     ))
     while queue:
         module_name = queue.pop().module
@@ -665,7 +665,7 @@ def parse(data, file_path='<string>'):
                 header=header,
                 file_path=file_path,
                 global_dict=global_dict)
-            if module_name == 'MAIN' else
+            if module_name == import_path else
             _load_source(module_name, global_dict=global_dict)
         for module_name in module_names
     }
