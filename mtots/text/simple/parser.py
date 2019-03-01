@@ -76,96 +76,6 @@ def _make_exportable_id(*, module_name, import_map):
     return Any('ID').map(lambda name: f'{module_name}.{name}')
 
 
-def _make_func_parser(
-        *,
-        constructor,
-        type_,
-        func_name,
-        parameters,
-        block,
-        module_scope,
-        ):
-
-    def handler(mark, native, rtype, name, params, body):
-        if module_scope:
-            if native and body is not None:
-                raise base.Error(
-                    [mark], 'native functions should not have a body')
-            if not native and body is None:
-                raise base.Error(
-                    [mark], 'only native functions can have missing body')
-        return constructor(
-            mark=mark,
-            rtype=rtype,
-            name=name,
-            params=params,
-            body=body,
-        )
-
-    parser = All(
-        native, type_, func_name, parameters, Any(
-            block,
-            Any(';').map(lambda x: None),
-        ),
-    ).fatmap(lambda m: handler(
-        mark=m.mark,
-        native=m.value[0],
-        rtype=m.value[1],
-        name=m.value[2],
-        params=m.value[3],
-        body=m.value[4],
-    ))
-
-    if module_scope is not None:
-        def callback(m):
-            if m.value.body is None:
-                return m.value
-            else:
-                scope = Scope(module_scope)
-                for param in m.value.params:
-                    scope[param.name] = param
-                return constructor(
-                    mark=m.value.mark,
-                    rtype=m.value.rtype,
-                    name=m.value.name,
-                    params=m.value.params,
-                    body=m.value.body(scope),
-                )
-
-        parser = parser.fatmap(callback)
-
-    return parser
-
-
-def _make_field_parser(*, type_):
-    return All(type_, 'ID', ';').fatmap(lambda m: ast.Field(
-        mark=m.mark,
-        type=m.value[0],
-        name=m.value[1],
-    ))
-
-
-def _make_class_parser(*, exportable_id, base_class, field, method):
-    return All(
-        native,            # 0: native
-        'class',           # 1
-        exportable_id,     # 2: name
-        base_class,        # 3: base/super class
-        '{',               # 4
-        field.repeat(),    # 5: fields
-        method.repeat(),   # 6: methods
-        '}',               # 7
-    ).fatmap(lambda m: ast.Class(
-        mark=m.mark,
-        native=m.value[0],
-        name=m.value[2],
-        base=m.value[3],
-        fields=tuple(m.value[5]),
-        methods=tuple(m.value[6]),
-    ))
-
-
-
 def _make_module_parser(*, global_variable, function, class_, module_name):
     return All(
         import_stmt.repeat().map(tuple),
@@ -218,6 +128,10 @@ def _make_combined_parser(
         global_dict,
         module_scope):
 
+    # We can perform some basic validations if the global_dict
+    # is available to us.
+    validate = global_dict is not None
+
     global_variable = All(
         type_, exportable_id, '=', expression.required(), Any(';').required(),
     ).fatmap(lambda m: ast.GlobalVariable(
@@ -239,51 +153,168 @@ def _make_combined_parser(
         ')',
     ).map(lambda args: tuple(args[1]))
 
-    function = _make_func_parser(
-        constructor=ast.Function,
-        type_=type_,
-        func_name=exportable_id,
-        parameters=parameters,
-        block=block,
-        module_scope=module_scope,
+    ############
+    # Function
+    ############
+    function_pattern = All(
+        native,                           # 0: native
+        type_,                            # 1: return type
+        exportable_id,                    # 2: name
+        parameters,                       # 3: parameters
+        Any(
+            block,
+            Any(';').map(lambda x: None),
+        ),                                # 4: body
     )
 
-    field = _make_field_parser(type_=type_)
+    def function_callback(m):
+        native = m.value[0]
+        rtype = m.value[1]
+        name = m.value[2]
+        params = m.value[3]
+        body_thunk = m.value[4]
 
-    method = _make_func_parser(
-        constructor=ast.Method,
-        type_=type_,
-        func_name='ID',
-        parameters=parameters,
-        block=block,
-        module_scope=module_scope,
+        if body_thunk is None:
+            body = None
+        else:
+            scope = Scope(module_scope)
+            for param in params:
+                scope[param.name] = param
+            body = body_thunk(scope)
+
+        if validate:
+            if native and body:
+                raise base.Error(
+                    [m.mark], 'Native functions cannot have a body')
+
+            if not native and not body:
+                raise base.Error(
+                    [m.mark], 'Non-native functions must have a body')
+
+        return ast.Function(
+            mark=m.mark,
+            rtype=rtype,
+            name=name,
+            params=params,
+            body=body,
+        )
+
+    function = function_pattern.fatmap(function_callback)
+
+    ############
+    # Field
+    ############
+
+    field_thunk = (
+        All(type_, 'ID', ';')
+            .fatmap(lambda m: lambda scope: ast.Field(
+                mark=m.mark,
+                type=m.value[0],
+                name=f'{scope["@class_name"]}.{m.value[1]}',
+            ))
     )
+
+    #################
+    # Method (thunk)
+    #################
+
+    method_pattern = All(
+        type_,                            # 0: return type
+        'ID',                             # 1: name
+        parameters,                       # 2: parameters
+        Any(
+            block,
+            Any(';').map(lambda x: None),
+        ),                                # 3: body
+    )
+
+    def method_callback(m):
+        def inner_callback(outer_scope):
+            scope = Scope(outer_scope)
+            rtype = m.value[0]
+            name = f'{scope["@class_name"]}#{m.value[1]}'
+            params = m.value[2]
+            body_thunk = m.value[3]
+            if body_thunk is None:
+                body = None
+            else:
+                for param in params:
+                    scope[param.name] = param
+                body = body_thunk(scope)
+            return ast.Method(
+                mark=m.mark,
+                rtype=rtype,
+                name=name,
+                params=params,
+                body=body,
+            )
+        return inner_callback
+
+    method_thunk = method_pattern.fatmap(method_callback)
+
+    ############
+    # Class
+    ############
 
     base_class = Any(
         All(':', importable_id).map(lambda args: args[1]),
         All().map(lambda args: None),
     )
 
-    class_ = All(
-        native,            # 0: native
-        'class',           # 1
-        exportable_id,     # 2: name
-        base_class,        # 3: base/super class
-        '{',               # 4
-        field.repeat(),    # 5: fields
-        method.repeat(),   # 6: methods
-        '}',               # 7
-    ).fatmap(lambda m: ast.Class(
-        mark=m.mark,
-        native=m.value[0],
-        name=m.value[2],
-        base=
+    class_pattern = All(
+        native,                  # 0: native
+        'class',                 # 1
+        exportable_id,           # 2: name
+        base_class,              # 3: base/super class
+        '{',                     # 4
+        field_thunk.repeat(),    # 5: fields
+        method_thunk.repeat(),   # 6: methods
+        '}',                     # 7
+    )
+
+    def class_callback(m):
+        native = m.value[0]
+        class_name = m.value[2]
+        declared_base = m.value[3]
+        field_thunks = m.value[5]
+        method_thunks = m.value[6]
+        base = (
             'lang.Object'
-            if m.value[3] is None and m.value[2] != 'lang.Object' else
-            m.value[3],
-        fields=tuple(m.value[5]),
-        methods=tuple(m.value[6]),
-    ))
+            if declared_base is None
+                and class_name != 'lang.Object' else
+            declared_base
+        )
+        scope = Scope(module_scope)
+        scope['@class_name'] = class_name
+        fields = tuple(ft(scope) for ft in field_thunks)
+        methods = tuple(mt(scope) for mt in method_thunks)
+        if validate:
+            for method in methods:
+                if native and method.body:
+                    raise base.Error(
+                        [m.mark, method.mark],
+                        'Native classes cannot have method bodies',
+                    )
+                if not native and not method.body:
+                    raise base.Error(
+                        [m.mark, method.mark],
+                        'Non-native classes cannot have native methods',
+                    )
+            if native and fields:
+                raise base.Error(
+                    [m.mark, fields[0].mark],
+                    'Native classes cannot have fields',
+                )
+        return ast.Class(
+            mark=m.mark,
+            native=native,
+            name=class_name,
+            base=base,
+            fields=fields,
+            methods=methods,
+        )
+
+    class_ = class_pattern.fatmap(class_callback)
 
     module = _make_module_parser(
         global_variable=global_variable,
