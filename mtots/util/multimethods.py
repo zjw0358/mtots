@@ -21,6 +21,9 @@ class Multimethod:
                 return self
             return wrapper
 
+        def __call__(self, *args):
+            return self.on(*args)
+
     @staticmethod
     def new(n):
         def wrapper(f):
