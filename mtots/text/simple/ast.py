@@ -21,6 +21,9 @@ PRELUDE_SYMBOLS = {
 OBJECT = f'{PRELUDE}.Object'
 
 
+STRING = f'{PRELUDE}.String'
+
+
 @util.dataclass(frozen=True)
 class Node(base.Node):
     pass
@@ -59,6 +62,10 @@ class Function(Node):
     name: str  # fully qualified name
     params: typing.Tuple['Parameter', ...]
     body: 'Block'
+
+    @property
+    def native(self):
+        return self.body is None
 
 
 @util.dataclass(frozen=True)
@@ -124,7 +131,7 @@ class IntLiteral(Expression):
 @util.dataclass(frozen=True)
 class StringLiteral(Expression):
     value: str
-    type = types.ClassType(f'{PRELUDE}.String')
+    type = types.ClassType(STRING)
 
 
 @util.dataclass(frozen=True)

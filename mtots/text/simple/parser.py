@@ -670,23 +670,3 @@ def parse(data, file_path='<string>', import_path='MAIN'):
         for module_name in module_names
     }
 
-
-print(parse("""
-import stdio.File
-
-int x = 10;
-
-int main() {
-    print("Hello world!");
-    return 0;
-}
-
-class Foo {
-    int foo() {
-        return 0;
-    }
-}
-
-"""))
-
-
