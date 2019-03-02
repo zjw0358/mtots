@@ -277,6 +277,11 @@ def lexer(lexer):
         value = resolve_str(m.group()[1:-1], mark)
         return [base.Token(mark, 'CHAR', value)]
 
+    @lexer.add(r'"""(?:' + escape_seq + r'|[^\r\n])*?"""')
+    def triple_quote_str_literal(m, mark):
+        value = resolve_str(m.group()[3:-3], mark)
+        return [base.Token(mark, 'STR', value)]
+
     @lexer.add(r'"(?:' + escape_seq + r'|[^\r\n"])*"')
     def str_literal(m, mark):
         value = resolve_str(m.group()[1:-1], mark)
@@ -320,7 +325,7 @@ def test_id():
 
 
 @test.case
-def test_id():
+def test_escaped_id():
     test.equal(
         list(lex_string('`hi`')),
         [
@@ -419,6 +424,54 @@ def test_decimal_int():
             base.Token(None, 'INT', 33),
             base.Token(None, 'INT', 44),
             base.Token(None, 'INT', 0),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+
+
+@test.case
+def test_triple_quote():
+    test.equal(
+        list(lex_string(r'''
+        """hi""" """world"""
+        ''')),
+        [
+            base.Token(None, 'STR', 'hi'),
+            base.Token(None, 'STR', 'world'),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+
+
+@test.case
+def test_non_greedy_str_literals():
+    test.equal(
+        list(lex_string(r'''
+            "hi" "world"
+        ''')),
+        [
+            base.Token(None, 'STR', 'hi'),
+            base.Token(None, 'STR', 'world'),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+    test.equal(
+        list(lex_string(r'''
+            "hi" """world"""
+        ''')),
+        [
+            base.Token(None, 'STR', 'hi'),
+            base.Token(None, 'STR', 'world'),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+    test.equal(
+        list(lex_string(r'''
+            """hi""" "world"
+        ''')),
+        [
+            base.Token(None, 'STR', 'hi'),
+            base.Token(None, 'STR', 'world'),
             base.Token(None, 'EOF', None),
         ],
     )
