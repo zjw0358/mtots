@@ -121,6 +121,9 @@ class Parser(abc.ABC):
 
         return self.xmap(g)
 
+    def valmap(self, value):
+        return self.map(lambda x: value)
+
     def getitem(self, i):
         return self.map(operator.itemgetter(i))
 
