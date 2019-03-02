@@ -329,7 +329,6 @@ def Struct(constructor, patterns, *, include_mark=False):
                 main=main_index,
                 end=m.mark.end,
             )
-            result = constructor(**kwargs)
         return constructor(**kwargs)
 
     return All(*parsers).fatmap(callback)
@@ -456,7 +455,11 @@ def _handle_direct_left_recursion(fwd: Forward, parser):
             alt_callbacks = ()
             subparser = alternative
 
-        if isinstance(subparser, All) and subparser.parsers[:1] == (fwd, ):
+        if (isinstance(subparser, All) and
+                len(subparser.parsers) >= 1 and
+                (subparser.parsers[0] == fwd or
+                    (isinstance(subparser.parsers[0], AllMap) and
+                        subparser.parsers[0].parser == fwd))):
             if len(subparser.parsers) == 1:
                 raise Error(
                     (),
