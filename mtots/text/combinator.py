@@ -274,11 +274,11 @@ class All(CompoundParser):
 
 def Struct(constructor, patterns, *, include_mark=False):
     names = []
-    parsers = []
+    raw_parsers = []
     for pattern in patterns:
         if isinstance(pattern, (str, Parser)):
             names.append(None)
-            parsers.append(Parser.ensure_parser(pattern))
+            raw_parsers.append(Parser.ensure_parser(pattern))
         else:
             field_name, field_parser = pattern
             if field_name == 'mark' and include_mark:
@@ -286,15 +286,50 @@ def Struct(constructor, patterns, *, include_mark=False):
                     'include_mark is set to true, '
                     'but one of the fields is also named "mark"!')
             names.append(field_name)
-            parsers.append(Parser.ensure_parser(field_parser))
+            raw_parsers.append(Parser.ensure_parser(field_parser))
+
+    parsers = [p.fatmap(lambda m: (m.mark, m.value)) for p in raw_parsers]
 
     def callback(m):
         kwargs = {
-            key: val for key, val in zip(names, m.value)
+            key: val for key, (_m, val) in zip(names, m.value)
                 if key is not None
         }
         if include_mark:
-            kwargs['mark'] = m.mark
+            # NOTE: The way that we determine the main index for the
+            # mark associated with this construct may at first be
+            # counter-intuitive, but is super effective for many cases.
+            # The idea is to pick the location of the first sub-parser
+            # that is unnamed.
+            # If all subparsers are named, we default to using whatever
+            # value 'All' thought was sensible.
+            # Consider a few examples:
+            # function call   <f> ( <args> )
+            #  the first unnamed with the the '(' token.
+            #  This is the one we want, since if we pointed to <f>,
+            #  it would be unclear whether the mark pointed to the
+            #  function call, or the expression that generated <f>
+            #  itself.
+            # binary operator    <a> + <b>
+            #  the first (and only) unnamed token is the '+' token.
+            #  Also good: if we pointed to <a> instead, it would be
+            #  ambiguous whether the mark was pointed to just <a> or
+            #  to <a> + <b> as a whole.
+            #  By pointing to '+', there's no ambiguity.
+            main_index = None
+            for key, (val_mark, val) in zip(names, m.value):
+                if key is None and main_index is None:
+                    main_index = val_mark.i
+                    break
+            else:
+                main_index = m.mark.main
+            kwargs['mark'] = base.Mark(
+                source=m.mark.source,
+                start=m.mark.start,
+                main=main_index,
+                end=m.mark.end,
+            )
+            result = constructor(**kwargs)
         return constructor(**kwargs)
 
     return All(*parsers).fatmap(callback)
@@ -716,10 +751,12 @@ def test_struct():
         ['xyz', 'NAME'],
     ], include_mark=True)
 
-    bar = parse(bar_parser, "924 + hi")
-    test.that(isinstance(bar.mark, base.Mark))
+    m = parse(bar_parser, "924 + hi")
+    test.that(isinstance(m.mark, base.Mark))
+    test.that(isinstance(m, Success))
+    test.that(hasattr(m.value, 'mark'))
     test.equal(
-        bar,
-        Success(None, Bar(bar.mark, 924, 'hi')),
+        m,
+        Success(None, Bar(m.value.mark, 924, 'hi')),
     )
 
