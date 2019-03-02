@@ -28,6 +28,8 @@ from typing import Tuple
 import abc
 import functools
 import math
+import operator
+import typing
 
 
 _INF = 1 << 62  # Effectively infinite integer
@@ -118,6 +120,9 @@ class Parser(abc.ABC):
             return Success(match_result.mark, f(match_result.value))
 
         return self.xmap(g)
+
+    def getitem(self, i):
+        return self.map(operator.itemgetter(i))
 
     def flatten(self):
 
@@ -262,6 +267,34 @@ class All(CompoundParser):
             last_mark.end,
         )
         return Success(mark, values)
+
+
+def Struct(constructor, patterns, *, include_mark=False):
+    names = []
+    parsers = []
+    for pattern in patterns:
+        if isinstance(pattern, (str, Parser)):
+            names.append(None)
+            parsers.append(Parser.ensure_parser(pattern))
+        else:
+            field_name, field_parser = pattern
+            if field_name == 'mark' and include_mark:
+                raise TypeError(
+                    'include_mark is set to true, '
+                    'but one of the fields is also named "mark"!')
+            names.append(field_name)
+            parsers.append(Parser.ensure_parser(field_parser))
+
+    def callback(m):
+        kwargs = {
+            key: val for key, val in zip(names, m.value)
+                if key is not None
+        }
+        if include_mark:
+            kwargs['mark'] = m.mark
+        return constructor(**kwargs)
+
+    return All(*parsers).fatmap(callback)
 
 
 def _apply_callbacks(mark, result, callbacks):
@@ -647,3 +680,43 @@ def test_join():
         parse('(5)'),
         Success(None, [5]),
     )
+
+
+@test.case
+def test_struct():
+    class Foo(typing.NamedTuple):
+        abc: float
+        xyz: str
+
+    foo_parser = Struct(Foo, [
+        ['abc', 'NUMBER'],
+        '+',
+        ['xyz', 'NAME'],
+    ])
+
+    def parse(parser, text):
+        return parser.parse(test_lexer.lex_string(text))
+
+    test.equal(
+        parse(foo_parser, "924 + hi"),
+        Success(None, Foo(924, 'hi')),
+    )
+
+    class Bar(typing.NamedTuple):
+        mark: base.Mark
+        abc: float
+        xyz: str
+
+    bar_parser = Struct(Bar, [
+        ['abc', 'NUMBER'],
+        '+',
+        ['xyz', 'NAME'],
+    ], include_mark=True)
+
+    bar = parse(bar_parser, "924 + hi")
+    test.that(isinstance(bar.mark, base.Mark))
+    test.equal(
+        bar,
+        Success(None, Bar(bar.mark, 924, 'hi')),
+    )
+
