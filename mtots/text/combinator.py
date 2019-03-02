@@ -383,6 +383,11 @@ class Forward(Parser):
                 self,
                 self.parser_factory(),
             )
+            if not isinstance(self._parser, Parser):
+                raise TypeError(
+                    f'Forward parser is not a parser! '
+                    f'({repr(self._parser)})',
+                )
         return self._parser
 
     def match(self, stream):
@@ -442,9 +447,10 @@ def _handle_direct_left_recursion(fwd: Forward, parser):
 
     alternatives = parser.parsers
     base_parsers: List[Parser] = []
-    recurse_pairs: List[Tuple[
+    recurse_triples: List[Tuple[
+        Tuple[Callable[[MatchResult], MatchResult], ...],
         Tuple[Parser, ...],
-        Tuple[Callable[[TokenStream, MatchResult], MatchResult], ...]
+        Tuple[Callable[[MatchResult], MatchResult], ...],
     ]] = []
 
     for alternative in alternatives:
@@ -465,11 +471,19 @@ def _handle_direct_left_recursion(fwd: Forward, parser):
                     (),
                     f'Problematic reduction {fwd} -> {fwd}',
                 )
-            recurse_pairs.append((subparser.parsers[1:], alt_callbacks))
+            if isinstance(subparser.parsers[0], AllMap):
+                first_callbacks = subparser.parsers[0].callbacks
+            else:
+                first_callbacks = ()
+            recurse_triples.append((
+                first_callbacks,
+                subparser.parsers[1:],
+                alt_callbacks,
+            ))
         else:
             base_parsers.append(alternative)
 
-    if recurse_pairs:
+    if recurse_triples:
         if not base_parsers:
             raise base.Error(
                 [],
@@ -479,7 +493,7 @@ def _handle_direct_left_recursion(fwd: Forward, parser):
             f'{fwd.name}.left_recursive({parser})',
             Any(*base_parsers),
             outer_callbacks,
-            tuple(recurse_pairs),
+            tuple(recurse_triples),
         )
     else:
         # If there's no left recursion, there's no need to
@@ -492,9 +506,10 @@ class _DirectLeftRecursive(Parser):
     name: str
     base_parser: Parser
     outer_callbacks: List[Callable[[MatchResult], MatchResult]]
-    recurse_pairs: List[Tuple[
+    recurse_triples: List[Tuple[
+        Tuple[Callable[[MatchResult], MatchResult], ...],
         Tuple[Parser, ...],
-        Tuple[Callable[[MatchResult], MatchResult], ...]
+        Tuple[Callable[[MatchResult], MatchResult], ...],
     ]]
 
     def match(self, stream):
@@ -506,8 +521,20 @@ class _DirectLeftRecursive(Parser):
         while result:
             state = stream.state
             middle_mark = stream.peek.mark
-            for postfix_parsers, alt_callbacks in self.recurse_pairs:
-                subvalues = [result.value]
+            for triple in self.recurse_triples:
+                first_callbacks, postfix_parsers, alt_callbacks = triple
+                first_callbacks_result = _apply_callbacks(
+                    result.mark,
+                    result,
+                    first_callbacks,
+                )
+                if not first_callbacks_result:
+                    # If any of the callbacks caused there to be
+                    # a failure, this alternative has failed.
+                    # We rewind for a fresh next round.
+                    stream.state = state
+                    continue
+                subvalues = [first_callbacks_result.value]
                 failed = False
                 for postfix_parser in postfix_parsers:
                     subresult = postfix_parser.match(stream)
@@ -537,11 +564,11 @@ class _DirectLeftRecursive(Parser):
                         result = new_result
                         break
                 # In this case, this set of postfix parsers and callbacks
-                # could not complete successfullyself.
+                # could not complete successfully.
                 # Rewind for a fresh next round.
                 stream.state = state
             else:
-                # If we tried all the recurse pairs, and we couldn't
+                # If we tried all the recurse triples, and we couldn't
                 # find anything, there's no reason to be in this
                 # while loop anymore.
                 break
