@@ -29,7 +29,11 @@ translation_unit = Forward(lambda: Struct(cst.TranslationUnit, [
     ).repeat()],
 ]))
 
-inline_blob = Struct(cst.InlineBlob, [['text', 'STR']])
+inline_blob = Struct(cst.InlineBlob, [
+    'inline',
+
+    ['text', 'STR'],
+])
 
 import_path_pattern = All(
     All('ID'),
@@ -42,7 +46,7 @@ import_stmt = Struct(cst.Import, [
 ])
 
 native_typedef = Struct(cst.NativeTypedef, [
-    'native', 'typedef', ['name', 'ID'],
+    'native', 'typedef', ['name', Any('ID').required()],
 ])
 
 native = Any('native').optional().map(bool)

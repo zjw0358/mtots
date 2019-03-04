@@ -41,3 +41,7 @@ def load(data, *, file_path='<string>'):
                     queue.append((import_path, import_tu))
     return collections.OrderedDict(reversed(pairs))
 
+
+print(load(r"""
+import stdio
+"""))
