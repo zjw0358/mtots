@@ -87,7 +87,7 @@ type_ref = Forward(lambda: Any(
         ['rtype', type_ref],
         '(',
         ['ptypes', type_ref.join(',')],
-        ['vararg', Any(
+        ['varargs', Any(
             All(',', '...').valmap(True),
             All(',').optional().valmap(False),
         )],
@@ -142,15 +142,15 @@ function_definition = Forward(lambda: Struct(cst.FunctionDefinition, [
     ['name', 'ID'],
     '(',
     ['params', parameter.join(',')],
-    ['vararg', Any(
+    ['varargs', Any(
         All(',', '...').valmap(True),
         All(',').optional().valmap(False),
     )],
-    ')',
+    Any(')').required(),
     ['body', Any(
         block,
         Any(';').valmap(None),
-    )],
+    ).required()],
 ]))
 
 

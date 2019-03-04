@@ -40,8 +40,3 @@ def load(data, *, file_path='<string>'):
                     import_tu = _parse_module(import_path)
                     queue.append((import_path, import_tu))
     return collections.OrderedDict(reversed(pairs))
-
-
-print(load(r"""
-import stdio
-"""))

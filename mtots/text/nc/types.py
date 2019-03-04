@@ -63,6 +63,31 @@ class ConstType(Type):
 @util.dataclass(frozen=True)
 class FunctionType(Type):
     rtype: Type                      # return type
-    attrs: typing.Tuple[str, ...]    # attributes (e.g. calling convention)
     ptypes: typing.Tuple[Type, ...]  # parameter types
     varargs: bool                    # whether varargs are accepted
+
+    def can_apply_to_argtypes(self, argtypes):
+        return (
+            (len(argtypes) >= len(self.ptypes) if self.varargs else
+                len(argtypes) == len(self.ptypes)) and
+            all(convertible(argtype, ptype)
+                    for argtype, ptype in zip(argtypes, self.ptypes))
+        )
+
+
+@util.multimethod(2)
+def convertible(on):
+
+    @on(PointerType, PointerType)
+    def r(src, dest):
+        return src == dest or dest == types.PointerType(types.VOID)
+
+    @on(_PrimitiveType, _PrimitiveType)
+    def r(src, dest):
+        return src == dest
+
+    @on(Type, Type)
+    def r(src, dest):
+        return src == dest
+
+

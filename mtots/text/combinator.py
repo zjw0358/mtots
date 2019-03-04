@@ -329,7 +329,10 @@ def Struct(constructor, patterns, *, include_mark=False):
                 main=main_index,
                 end=m.mark.end,
             )
-        return constructor(**kwargs)
+        try:
+            return constructor(**kwargs)
+        except TypeError as e:
+            raise TypeError(f'{constructor} construction failure') from e
 
     return All(*parsers).fatmap(callback)
 

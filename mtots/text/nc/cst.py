@@ -98,7 +98,7 @@ class FunctionDefinition(GlobalStatement):
     rtype: TypeReference
     name: str
     params: typing.Tuple[Parameter, ...]
-    vararg: bool
+    varargs: bool
     body: typing.Optional[Block]
 
     @property
