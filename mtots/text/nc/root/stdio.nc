@@ -1,4 +1,4 @@
-inline """
+inline** """
 #include <stdio.h>
 """
 

@@ -52,6 +52,7 @@ class TranslationUnit(Node):
 
 @util.dataclass(frozen=True)
 class InlineBlob(GlobalStatement):
+    type: str
     text: str
 
 

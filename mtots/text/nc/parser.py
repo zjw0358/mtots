@@ -24,6 +24,7 @@ translation_unit = Forward(lambda: Struct(cst.TranslationUnit, [
     ['stmts', Any(
         inline_blob,
         import_stmt,
+        native_typedef,
         struct_definition,
         function_definition,
     ).repeat()],
@@ -31,8 +32,12 @@ translation_unit = Forward(lambda: Struct(cst.TranslationUnit, [
 
 inline_blob = Struct(cst.InlineBlob, [
     'inline',
-
-    ['text', 'STR'],
+    ['type', Any(
+        All('*', '*').valmap('fwd'),
+        All('*').valmap('hdr'),
+        All().valmap('src'),
+    )],
+    ['text', Any('STR').required()],
 ])
 
 import_path_pattern = All(
