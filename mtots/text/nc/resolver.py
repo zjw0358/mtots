@@ -220,7 +220,7 @@ def _resolve(on):
 
     @on(cst.IntLiteral)
     def r(cst_node, ctx):
-        return ast.StringLiteral(
+        return ast.IntLiteral(
             mark=cst_node.mark,
             type=types.INT,
             value=cst_node.value,
