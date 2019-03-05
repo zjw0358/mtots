@@ -201,7 +201,7 @@ def _declare(on):
     def r(node, declarator):
         return f'{node.name} {declarator}'
 
-    @on(types.Typedef)
+    @on(types.BuiltinTypedef)
     def r(node, declarator):
         return f'{node.name} {declarator}'
 

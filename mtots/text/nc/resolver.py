@@ -138,7 +138,7 @@ def _resolve(on):
     def r(cst_node, ctx):
         type_type = ctx.type_map[cst_node.name]
         if type_type == 'TYPEDEF':
-            return types.Typedef(cst_node.name)
+            return types.BuiltinTypedef(cst_node.name)
         elif type_type == 'STRUCT':
             return types.StructType(cst_node.name)
         raise TypeError(f'Invalid Type type {type_type}')
