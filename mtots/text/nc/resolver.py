@@ -109,7 +109,7 @@ def _make_type_map(cst_map):
     return type_map
 
 
-def resolve(cst_map):
+def resolve(cst_map, main_module='MAIN'):
     ctx = Context(
         stack=Stack(),
         scope=Scope(None),
@@ -117,7 +117,7 @@ def resolve(cst_map):
         cst_map=cst_map,
         tu_cache=dict(),
     )
-    return ctx.resolve_import('MAIN')
+    return ctx.resolve_import(main_module)
 
 
 @util.multimethod(1)
@@ -278,14 +278,3 @@ def _resolve(on):
             f=f,
             args=args,
         )
-
-
-print(resolve(loader.load(r"""
-import stdio
-
-int main() {
-    printf("Hello world!\n");
-    return 0;
-}
-""")))
-
