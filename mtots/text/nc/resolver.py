@@ -134,6 +134,15 @@ def _resolve(on):
     def r(cst_node, ctx):
         return cst_node.type
 
+    @on(cst.NamedType)
+    def r(cst_node, ctx):
+        type_type = ctx.type_map[cst_node.name]
+        if type_type == 'TYPEDEF':
+            return types.Typedef(cst_node.name)
+        elif type_type == 'STRUCT':
+            return types.StructType(cst_node.name)
+        raise TypeError(f'Invalid Type type {type_type}')
+
     @on(cst.PointerType)
     def r(cst_node, ctx):
         return types.PointerType(_resolve(cst_node.type, ctx))
@@ -204,16 +213,28 @@ def _resolve(on):
             stmts=tuple(_resolve(stmt, ctx) for stmt in cst_block.stmts),
         )
 
-    @on(cst.ExpressionStatement)
+    @on(cst.LocalVariableDeclaration)
     def r(cst_stmt, ctx):
-        return ast.ExpressionStatement(
+        decl = ast.LocalVariableDeclaration(
             mark=cst_stmt.mark,
-            expr=_resolve(cst_stmt.expr, ctx),
+            type=_resolve(cst_stmt.type, ctx),
+            name=cst_stmt.name,
+            expr=None if cst_stmt.expr is None else
+                 _resolve(cst_stmt.expr, ctx),
         )
+        ctx[decl.name] = decl
+        return decl
 
     @on(cst.Return)
     def r(cst_stmt, ctx):
         return ast.Return(
+            mark=cst_stmt.mark,
+            expr=_resolve(cst_stmt.expr, ctx),
+        )
+
+    @on(cst.ExpressionStatement)
+    def r(cst_stmt, ctx):
+        return ast.ExpressionStatement(
             mark=cst_stmt.mark,
             expr=_resolve(cst_stmt.expr, ctx),
         )
@@ -245,7 +266,7 @@ def _resolve(on):
                 type=decl.type,
                 proto=decl,
             )
-        elif isinstance(decl, ast.Parameter):
+        elif isinstance(decl, (ast.Parameter, ast.LocalVariableDeclaration)):
             return ast.LocalVariable(
                 mark=cst_node.mark,
                 type=decl.type,

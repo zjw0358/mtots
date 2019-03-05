@@ -37,7 +37,7 @@ LONG_DOUBLE = _PrimitiveType('long double')
 
 
 @util.dataclass(frozen=True)
-class NativeType(Type):
+class Typedef(Type):
     """Unknown whether it is a struct type or some typedef,
     but declared in the raw C code, and not a native type.
     E.g. size_t.

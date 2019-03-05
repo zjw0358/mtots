@@ -45,6 +45,7 @@ class _Context:
         self.indent()
         self.src.append(line)
         self.src.append('\n')
+        return self
 
     def __str__(self):
         return ''.join(''.join(map(str, xs))
@@ -96,16 +97,28 @@ def _gen(on):
         ctx.src.append('{\n')
         with ctx.push_indent():
             for stmt in node.stmts:
+                # For C89 conformance, we need to put all the
+                # declarations at the beginning of the block.
+                if isinstance(stmt, ast.LocalVariableDeclaration):
+                    ctx += f'{_declare(stmt.type, _n(stmt.name))};'
+            for stmt in node.stmts:
                 _gen(stmt, ctx)
         ctx += '}'
 
-    @on(ast.ExpressionStatement)
+    @on(ast.LocalVariableDeclaration)
     def r(node, ctx):
-        ctx += f'{_gen(node.expr)};'
+        # NOTE: the variables should be already declared at the beginning
+        # of the surrounding block.
+        if node.expr is not None:
+            ctx += f'{_n(node.name)} = {_gen(node.expr)};'
 
     @on(ast.Return)
     def r(node, ctx):
         ctx += f'return {_gen(node.expr)};'
+
+    @on(ast.ExpressionStatement)
+    def r(node, ctx):
+        ctx += f'{_gen(node.expr)};'
 
     @on(ast.FunctionCall)
     def r(node):
@@ -114,6 +127,10 @@ def _gen(on):
         return f'({f})({args})'
 
     @on(ast.FunctionName)
+    def r(node):
+        return _n(node.name)
+
+    @on(ast.LocalVariable)
     def r(node):
         return _n(node.name)
 
@@ -170,12 +187,19 @@ def _declare(on):
     def r(node, declarator):
         return f'{node.name} {declarator}'
 
+    @on(types.Typedef)
+    def r(node, declarator):
+        return f'{node.name} {declarator}'
+
 
 print(gen(resolver.resolve(loader.load(r"""
 import stdio
 
 int main() {
     printf("Hello world!\n");
+    FILE* fout = fopen("asdf.txt", "w");
+    fprintf(fout, "Hello file!\n");
+    fclose(fout);
     return 0;
 }
 """))))

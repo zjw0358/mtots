@@ -103,6 +103,7 @@ expression = Forward(lambda: additive)
 
 statement = Forward(lambda: Any(
     block,
+    declaration_statement,
     return_statement,
     expression_statement,
 ))
@@ -162,15 +163,25 @@ function_definition = Forward(lambda: Struct(cst.FunctionDefinition, [
 block = Struct(cst.Block, [
     '{',
     ['stmts', statement.repeat()],
-    '}',
+    Required('}'),
 ])
 
-expression_statement = Struct(cst.ExpressionStatement, [
-    ['expr', expression], ';',
+declaration_statement = Struct(cst.LocalVariableDeclaration, [
+    ['type', type_ref],
+    ['name', 'ID'],
+    ['expr', Any(
+        All('=', expression).getitem(1),
+        All().valmap(None),
+    )],
+    Required(';'),
 ])
 
 return_statement = Struct(cst.Return, [
-    'return', ['expr', expression], ';',
+    'return', ['expr', Any(expression, All().valmap(None))], Required(';'),
+])
+
+expression_statement = Struct(cst.ExpressionStatement, [
+    ['expr', expression], Required(';'),
 ])
 
 

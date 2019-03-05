@@ -144,12 +144,19 @@ class FunctionType(TypeReference):
 
 
 @util.dataclass(frozen=True)
-class ExpressionStatement(Statement):
-    expr: Expression
+class LocalVariableDeclaration(Statement):
+    type: TypeReference
+    name: str
+    expr: typing.Optional[Expression]
 
 
 @util.dataclass(frozen=True)
 class Return(Statement):
+    expr: Expression
+
+
+@util.dataclass(frozen=True)
+class ExpressionStatement(Statement):
     expr: Expression
 
 

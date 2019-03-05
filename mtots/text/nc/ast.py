@@ -143,12 +143,19 @@ class FunctionDefinition(GlobalStatement):
 
 
 @util.dataclass(frozen=True)
-class ExpressionStatement(Statement):
-    expr: Expression
+class LocalVariableDeclaration(Statement):
+    type: TypeReference
+    name: str
+    expr: typing.Optional[Expression]
 
 
 @util.dataclass(frozen=True)
 class Return(Statement):
+    expr: Expression
+
+
+@util.dataclass(frozen=True)
+class ExpressionStatement(Statement):
     expr: Expression
 
 
@@ -164,6 +171,15 @@ class FunctionName(Expression):
     @property
     def name(self):
         return self.proto.name
+
+
+@util.dataclass(frozen=True)
+class LocalVariable(Expression):
+    decl: typing.Union[LocalVariableDeclaration, Parameter]
+
+    @property
+    def name(self):
+        return self.decl.name
 
 
 @util.dataclass(frozen=True)
