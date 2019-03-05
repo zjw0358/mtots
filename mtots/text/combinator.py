@@ -337,6 +337,10 @@ def Struct(constructor, patterns, *, include_mark=False):
     return All(*parsers).fatmap(callback)
 
 
+def Required(pattern):
+    return Any(pattern).required()
+
+
 def _apply_callbacks(mark, result, callbacks):
     for f in callbacks:
         result = f(result)

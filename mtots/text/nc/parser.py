@@ -10,6 +10,7 @@ from mtots.text.combinator import Any
 from mtots.text.combinator import AnyTokenBut
 from mtots.text.combinator import Forward
 from mtots.text.combinator import Peek
+from mtots.text.combinator import Required
 from mtots.text.combinator import Token
 from mtots.util import Scope
 import os
@@ -37,7 +38,7 @@ inline_blob = Struct(cst.InlineBlob, [
         All('*').valmap('hdr'),
         All().valmap('src'),
     )],
-    ['text', Any('STR').required()],
+    ['text', Required('STR')],
 ])
 
 import_path_pattern = All(
@@ -51,7 +52,7 @@ import_stmt = Struct(cst.Import, [
 ])
 
 native_typedef = Struct(cst.NativeTypedef, [
-    'native', 'typedef', ['name', Any('ID').required()],
+    'native', 'typedef', ['name', Required('ID')],
 ])
 
 native = Any('native').optional().map(bool)
@@ -126,7 +127,7 @@ struct_definition = Struct(cst.StructDefinition, [
         All(
             '{',
             field_definition.repeat(),
-            Any('}').required(),
+            Required('}'),
         ).getitem(1),
         Any(';').valmap(None),
     )],
@@ -146,7 +147,7 @@ function_definition = Forward(lambda: Struct(cst.FunctionDefinition, [
         All(',', '...').valmap(True),
         All(',').optional().valmap(False),
     )],
-    Any(')').required(),
+    Required(')'),
     ['body', Any(
         block,
         Any(';').valmap(None),
@@ -178,7 +179,7 @@ return_statement = Struct(cst.Return, [
 ########################################################################
 
 atom = Any(
-    All('(', expression, ')').getitem(1),
+    All('(', expression.required(), Required(')')).getitem(1),
     Struct(cst.IntLiteral, [['value', 'INT']]),
     Struct(cst.DoubleLiteral, [['value', 'DOUBLE']]),
     Struct(cst.StringLiteral, [['value', 'STR']]),
@@ -190,7 +191,7 @@ postfix = Forward(lambda: Any(
         ['f', postfix],
         '(',
         ['args', expression.join(',')],
-        ')',
+        Required(')'),
     ]),
     atom,
 ))
