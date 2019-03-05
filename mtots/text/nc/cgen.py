@@ -207,6 +207,7 @@ def _declare(on):
 
 
 print(gen(resolver.resolve(loader.load(r"""
+# cls && python3.6 -m mtots.text.nc.cgen | gcc -Wall -Werror -Wpedantic -std=c89 -x c - && ./a.out
 import stdio
 
 int main() {
