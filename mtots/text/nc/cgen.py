@@ -29,9 +29,18 @@ class _Context:
     src: list = dataclasses.field(default_factory=lambda: [])
     tu_set: set = dataclasses.field(default_factory=lambda: set())
     depth: int = 0
+    emit_debug_info: bool = True
 
     def indent(self):
         self.src.append(self.depth * '  ')
+
+    def mark_file(self, node):
+        if self.emit_debug_info:
+            self.src.append(f'#line {1} "{node.mark.source.path}"\n')
+
+    def mark_line(self, node):
+        if self.emit_debug_info:
+            self.src.append(f'#line {node.mark.lineno}\n')
 
     @contextlib.contextmanager
     def push_indent(self):
@@ -59,6 +68,7 @@ def _gen(on):
     def r(node, ctx):
         key = id(node)
         if key not in ctx.tu_set:
+            ctx.mark_file(node)
             for stmt in node.stmts:
                 _gen(stmt, ctx)
             ctx.tu_set.add(key)
@@ -66,6 +76,7 @@ def _gen(on):
     @on(ast.Import)
     def r(node, ctx):
         _gen(node.tu, ctx)
+        ctx.mark_file(node)
 
     @on(ast.InlineBlob)
     def r(node, ctx):
@@ -74,6 +85,7 @@ def _gen(on):
         elif node.type == 'hdr':
             ctx.hdr.append(node.text)
         elif node.type == 'src':
+            ctx.mark_line(node)
             ctx.src.append(node.text)
         else:
             raise TypeError(f'Invalid blob type {node.type}')
@@ -87,6 +99,7 @@ def _gen(on):
         if not node.native:
             proto = _declare(node.proto)
             ctx.hdr.append(f'{proto};\n')
+            ctx.mark_line(node)
             ctx.src.append(f'{proto} ')
             _gen(node.body, ctx, first_indent=False)
 
@@ -102,6 +115,7 @@ def _gen(on):
                 if isinstance(stmt, ast.LocalVariableDeclaration):
                     ctx += f'{_declare(stmt.type, _n(stmt.name))};'
             for stmt in node.stmts:
+                ctx.mark_line(stmt)
                 _gen(stmt, ctx)
         ctx += '}'
 
