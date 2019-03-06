@@ -2,7 +2,7 @@ from . import types
 from mtots import util
 from mtots.text import base
 from mtots.util import dataclasses
-import typing
+from mtots.util import typing
 
 
 @util.dataclass(frozen=True)

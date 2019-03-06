@@ -12,7 +12,7 @@ from mtots.text.combinator import Peek
 from mtots.text.combinator import Token
 from mtots.util import Scope
 import os
-import typing
+from mtots.util import typing
 
 
 _source_root = os.path.join(

@@ -21,15 +21,15 @@ from .base import Success
 from .base import TokenStream
 from mtots import test
 from mtots.util.dataclasses import dataclass
-from typing import Callable
-from typing import Iterable
-from typing import List
-from typing import Tuple
+from mtots.util.typing import Callable
+from mtots.util.typing import Iterable
+from mtots.util.typing import List
+from mtots.util.typing import Tuple
 import abc
 import functools
 import math
 import operator
-import typing
+from mtots.util import typing
 
 
 _INF = 1 << 62  # Effectively infinite integer

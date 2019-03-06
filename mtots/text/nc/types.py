@@ -1,5 +1,5 @@
 from mtots import util
-import typing
+from mtots.util import typing
 
 @util.dataclass(frozen=True)
 class Type:

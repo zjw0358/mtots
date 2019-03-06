@@ -9,7 +9,7 @@ from mtots import util
 from mtots.text import base
 from mtots.util import dataclasses
 import abc
-import typing
+from mtots.util import typing
 
 Node = base.Node
 

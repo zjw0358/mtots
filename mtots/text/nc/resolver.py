@@ -5,7 +5,7 @@ from . import loader
 from . import types
 from mtots import util
 import contextlib
-import typing
+from mtots.util import typing
 
 
 class Scope:

@@ -3,7 +3,7 @@ from .types import Type
 from mtots import util
 from mtots.text import base
 from mtots.util import dataclasses
-import typing
+from mtots.util import typing
 
 
 # Name of the module that is always implicitly included

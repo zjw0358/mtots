@@ -1,6 +1,6 @@
 from mtots.text import base
 from mtots.util.dataclasses import dataclass
-from typing import List, Optional
+from mtots.util.typing import List, Optional
 
 
 @dataclass(frozen=True)

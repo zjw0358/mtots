@@ -14,7 +14,7 @@ from mtots.text.combinator import Required
 from mtots.text.combinator import Token
 from mtots.util import Scope
 import os
-import typing
+from mtots.util import typing
 
 
 def Struct(*args, **kwargs):

@@ -1,16 +1,17 @@
 from mtots import test
 from mtots.util import dataclasses
 from mtots.util.dataclasses import dataclass
-from typing import Iterator
-from typing import Tuple
+from mtots.util.typing import Iterator
+from mtots.util.typing import Tuple
 import argparse
 import json
 import re
 import sys
-import typing
+from mtots.util import typing
 
 
-class Source(typing.NamedTuple):
+@dataclass(frozen=True)
+class Source:
     path: str
     data: str
     metadata: object = None
@@ -20,7 +21,8 @@ class Source(typing.NamedTuple):
         return Source('<string>', data)
 
 
-class Mark(typing.NamedTuple):
+@dataclass(frozen=True)
+class Mark:
     source: Source
     start: int
     end: int
@@ -75,7 +77,8 @@ class Mark(typing.NamedTuple):
         )
 
 
-class Token(typing.NamedTuple):
+@dataclass(frozen=True)
+class Token:
     mark: typing.Optional[Mark]
     type: str
     explicit_value: object
@@ -120,7 +123,8 @@ class Node:
         return args
 
 
-class Pattern(typing.NamedTuple):
+@dataclass(frozen=True)
+class Pattern:
     regex: typing.Pattern
     callback: typing.Callable[[typing.Match, Mark],
                               typing.Iterable[Token]]

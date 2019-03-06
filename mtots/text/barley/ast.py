@@ -1,6 +1,6 @@
 from mtots.text import base
 from mtots.util.dataclasses import dataclass
-import typing
+from mtots.util import typing
 
 
 Node = base.Node
