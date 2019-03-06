@@ -1,4 +1,5 @@
 from .dataclasses import dataclass
+from mtots import test
 import functools
 import typing
 
@@ -30,7 +31,10 @@ class FakeType:
 @dataclass(frozen=True)
 class UnionType(FakeType):
 
-    def __getitem__(self, *types):
+    def __getitem__(self, types):
+        if not isinstance(types, tuple):
+            types = (types, )
+
         return GenericUnionType(types)
 
     def __instancecheck__(self, instance):
@@ -56,7 +60,10 @@ class GenericUnionType(FakeType):
 @dataclass(frozen=True)
 class TupleType(FakeType):
 
-    def __getitem__(self, *types):
+    def __getitem__(self, types):
+        if not isinstance(types, tuple):
+            types = (types, )
+
         if types and types[-1] == ...:
             subtype, _ = types
             return SequenceTupleType(subtype)
@@ -64,7 +71,7 @@ class TupleType(FakeType):
             return GenericTupleType(types=types)
 
     def __instancecheck__(self, instance):
-        return isinstance(tuple, instance)
+        return isinstance(instance, tuple)
 
     def __repr__(self):
         return 'typing.Tuple'
@@ -161,3 +168,38 @@ Iterator = typing.Iterator
 Set = typing.Set
 Dict = typing.Dict
 NamedTuple = typing.NamedTuple
+
+
+@test.case
+def test_union():
+    test.that(isinstance('hi', Union[int, str]))
+    test.that(isinstance(15, Union[int, str]))
+    test.that(not isinstance(15.0, Union[int, str]))
+
+
+@test.case
+def test_tuple():
+    test.that(isinstance((), Tuple))
+    test.that(isinstance((), Tuple[()]))
+    test.that(isinstance((5, ), Tuple[int]))
+    test.that(not isinstance((5, ), Tuple[int, int]))
+    test.that(isinstance((5, 10), Tuple[int, int]))
+    test.that(not isinstance((5, '10'), Tuple[int, int]))
+
+
+@test.case
+def test_list():
+    test.that(isinstance([], List))
+    test.that(isinstance([], List[int]))
+    test.that(not isinstance(['hi'], List[int]))
+    test.that(isinstance([51], List[int]))
+
+
+@test.case
+def test_optional():
+    test.that(isinstance(51.1, Optional))
+    test.that(isinstance(None, Optional))
+    test.that(not isinstance(10, Optional[str]))
+    test.that(isinstance('hi', Optional[str]))
+    test.that(isinstance(None, Optional[str]))
+
