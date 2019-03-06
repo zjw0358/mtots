@@ -5,6 +5,7 @@ from mtots.util import dataclasses
 from mtots.util import typing
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Node(base.Node):
     pass
@@ -15,31 +16,31 @@ class Node(base.Node):
 ########################################################################
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class GlobalStatement(Node):
     pass
 
 
-@util.dataclass(frozen=True)
-class TypeReference(Node):
-    pass
-
-
+@typing.check
 @util.dataclass(frozen=True)
 class Statement(Node):
     pass
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Block(Statement):
     stmts: typing.Tuple[Statement, ...]
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Expression(Node):
     type: types.Type
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class TranslationUnit(Node):
     stmts: typing.Tuple[GlobalStatement, ...]
@@ -50,23 +51,27 @@ class TranslationUnit(Node):
 ########################################################################
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class InlineBlob(GlobalStatement):
     type: str
     text: str
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Import(GlobalStatement):
     path: str
     tu: TranslationUnit = dataclasses.field(compare=False, repr=False)
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class NativeTypedef(GlobalStatement):
     name: str
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class GlobalVariableDeclaration(GlobalStatement):
     native: bool
@@ -74,12 +79,14 @@ class GlobalVariableDeclaration(GlobalStatement):
     name: str
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Field(Node):
     type: types.Type
     name: str
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class StructDefinition(GlobalStatement):
     native: bool
@@ -88,12 +95,14 @@ class StructDefinition(GlobalStatement):
     fields: typing.Tuple[Field, ...]
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Parameter(Node):
     type: types.Type
     name: str
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class FunctionPrototype(Node):
     native: bool
@@ -111,6 +120,7 @@ class FunctionPrototype(Node):
         )
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class FunctionDefinition(GlobalStatement):
     proto: FunctionPrototype
@@ -142,18 +152,21 @@ class FunctionDefinition(GlobalStatement):
 ########################################################################
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class LocalVariableDeclaration(Statement):
-    type: TypeReference
+    type: types.Type
     name: str
     expr: typing.Optional[Expression]
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class Return(Statement):
     expr: Expression
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class ExpressionStatement(Statement):
     expr: Expression
@@ -164,6 +177,7 @@ class ExpressionStatement(Statement):
 ########################################################################
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class FunctionName(Expression):
     proto: FunctionPrototype
@@ -173,6 +187,7 @@ class FunctionName(Expression):
         return self.proto.name
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class LocalVariable(Expression):
     decl: typing.Union[LocalVariableDeclaration, Parameter]
@@ -182,21 +197,25 @@ class LocalVariable(Expression):
         return self.decl.name
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class IntLiteral(Expression):
     value: int
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class DoubleLiteral(Expression):
     value: float
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class StringLiteral(Expression):
     value: str
 
 
+@typing.check
 @util.dataclass(frozen=True)
 class FunctionCall(Expression):
     f: Expression
