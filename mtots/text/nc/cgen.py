@@ -6,6 +6,7 @@ from . import ast
 from . import loader
 from . import resolver
 from . import types
+from mtots import test
 from mtots import util
 from mtots.util import dataclasses
 import contextlib
@@ -209,15 +210,18 @@ def _declare(on):
         return f'{_n(node.name)} {declarator}'
 
 
-print(gen(resolver.resolve(loader.load(r"""
-# cls && python3.6 -m mtots.text.nc.cgen | gcc -Wall -Werror -Wpedantic -std=c89 -x c - && ./a.out
-import cstdio
+@test.case
+def test_runs():
+    # For now just check that this can run without throwing
+    gen(resolver.resolve(loader.load(r"""
+    # cls && python3.6 -m mtots.text.nc.cgen | gcc -Wall -Werror -Wpedantic -std=c89 -x c - && ./a.out
+    import cstdio
 
-int $main() {
-    $printf("Hello world!\n");
-    $FILE* fout = $fopen("asdf.txt", "w");
-    $fprintf(fout, "Hello file!\n");
-    $fclose(fout);
-    return 0;
-}
-"""))))
+    int $main() {
+        $printf("Hello world!\n");
+        $FILE* fout = $fopen("asdf.txt", "w");
+        $fprintf(fout, "Hello file!\n");
+        $fclose(fout);
+        return 0;
+    }
+    """)))
