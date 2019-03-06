@@ -136,6 +136,10 @@ def _resolve(on):
 
     @on(cst.NamedType)
     def r(cst_node, ctx):
+        if cst_node.name not in ctx.type_map:
+            raise errors.TypeError(
+                [cst_node.mark],
+                f'{repr(cst_node.name)} is not a type')
         type_type = ctx.type_map[cst_node.name]
         if type_type == 'TYPEDEF':
             return types.BuiltinTypedef(cst_node.name)

@@ -12,6 +12,8 @@ import contextlib
 import json
 import re
 
+C_NAME_PATTERN = re.compile(r'[a-zA-Z_][a-zA-Z_0-9]*')
+ESCAPED_C_NAME_PATTERN = re.compile(r'\$[a-zA-Z_][a-zA-Z_0-9]*')
 NORMAL_NAME_PATTERN = re.compile(r'[a-zA-Z0-9_]+')
 SPECIAL_NAME_PATTERN = re.compile(r'@[a-zA-Z0-9_$]+')
 
@@ -159,17 +161,18 @@ def _gen(on):
 
 
 def _n(name):
-    if NORMAL_NAME_PATTERN.match(name):
-        return name
-    elif SPECIAL_NAME_PATTERN.match(name):
+    if ESCAPED_C_NAME_PATTERN.match(name):
+        return name[1:]
+    elif NORMAL_NAME_PATTERN.match(name) or SPECIAL_NAME_PATTERN.match(name):
         new_name = (
             'NCX_' +
             name[1:]
                 .replace('Z', 'ZZ')
                 .replace('$', 'ZD')
                 .replace('_', 'ZU')
+                .replace('@', 'ZA')
         )
-        assert NORMAL_NAME_PATTERN.match(new_name), (name, new_name)
+        assert C_NAME_PATTERN.match(new_name), (name, new_name)
         return new_name
     else:
         raise TypeError(f'Invalid identifier {repr(name)}')
@@ -203,18 +206,18 @@ def _declare(on):
 
     @on(types.BuiltinTypedef)
     def r(node, declarator):
-        return f'{node.name} {declarator}'
+        return f'{_n(node.name)} {declarator}'
 
 
 print(gen(resolver.resolve(loader.load(r"""
 # cls && python3.6 -m mtots.text.nc.cgen | gcc -Wall -Werror -Wpedantic -std=c89 -x c - && ./a.out
-import stdio
+import cstdio
 
-int main() {
-    printf("Hello world!\n");
-    FILE* fout = fopen("asdf.txt", "w");
-    fprintf(fout, "Hello file!\n");
-    fclose(fout);
+int $main() {
+    $printf("Hello world!\n");
+    $FILE* fout = $fopen("asdf.txt", "w");
+    $fprintf(fout, "Hello file!\n");
+    $fclose(fout);
     return 0;
 }
 """))))
