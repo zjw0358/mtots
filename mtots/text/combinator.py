@@ -147,7 +147,7 @@ class Parser(abc.ABC):
         return Repeat(self, min, max)
 
     def optional(self):
-        return self.repeat(0, 1)
+        return self.repeat(0, 1).map(bool)
 
     def __or__(self, other):
         return Any(self, other)
