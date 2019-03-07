@@ -108,11 +108,11 @@ class Error(Exception):
         )
 
 
-class LexError(Error):
+class ParseError(Error):
     pass
 
 
-class ParseError(Error):
+class LexError(ParseError):
     pass
 
 
