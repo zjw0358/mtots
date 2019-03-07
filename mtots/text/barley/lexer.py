@@ -1,9 +1,7 @@
-"""Java lexer, mostly faithful to Java SE 11 spec
-
-https://docs.oracle.com/javase/specs/jls/se11/html/jls-3.html
-
-Some additional syntax for float literal and int literal
-not yet done, are marked with TODO.
+"""Lexer that supports Python-style syntax
+including INDENT/DEDENT tokens, NEWLINE tokens,
+and excluding NEWLINE tokens when they appear inside (), [] or {}
+groupings.
 """
 from mtots import test
 from mtots.text import base
@@ -146,6 +144,16 @@ def lexer(builder):
                 i = j
         return ''.join(parts)
 
+    @builder.add(r'"""(?:' + escape_seq + r'|(?!""").)*?"""')
+    def triple_double_quote_str_literal(m, mark):
+        value = resolve_str(m.group()[3:-3], mark)
+        return [base.Token(mark, 'STR', value)]
+
+    @builder.add(r"'''(?:" + escape_seq + r"|(?!''').)*?'''")
+    def triple_single_quote_str_literal(m, mark):
+        value = resolve_str(m.group()[3:-3], mark)
+        return [base.Token(mark, 'STR', value)]
+
     @builder.add(r"'(?:" + escape_seq + r"|[^\r\n'])*'")
     def single_quote_str_literal(m, mark):
         value = resolve_str(m.group()[1:-1], mark)
@@ -255,6 +263,34 @@ def foo(
             base.Token(None, 'pass', None),
             base.Token(None, 'NEWLINE', None),
             base.Token(None, 'DEDENT', None),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+
+
+@test.case
+def test_triple_quote():
+    test.equal(
+        list(lex_string(r'''(
+            """hi""" """world"""
+        )''')),
+        [
+            base.Token(None, '(', None),
+            base.Token(None, 'STR', 'hi'),
+            base.Token(None, 'STR', 'world'),
+            base.Token(None, ')', None),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+    test.equal(
+        list(lex_string(r"""(
+            '''hi''' '''world'''
+        )""")),
+        [
+            base.Token(None, '(', None),
+            base.Token(None, 'STR', 'hi'),
+            base.Token(None, 'STR', 'world'),
+            base.Token(None, ')', None),
             base.Token(None, 'EOF', None),
         ],
     )
