@@ -4,7 +4,7 @@ import functools
 import typing
 
 
-def check(cls):
+def enforce(cls):
 
     if hasattr(cls, '__annotations__'):
         init = cls.__init__
@@ -27,7 +27,7 @@ class FakeType:
     pass
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class UnionType(FakeType):
 
@@ -44,7 +44,7 @@ class UnionType(FakeType):
         return 'typing.Union'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class GenericUnionType(FakeType):
     types: tuple
@@ -56,7 +56,7 @@ class GenericUnionType(FakeType):
         return f'typing.Union[{", ".join(map(repr, self.types))}]'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class TupleType(FakeType):
 
@@ -77,7 +77,7 @@ class TupleType(FakeType):
         return 'typing.Tuple'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class GenericTupleType(FakeType):
     types: tuple
@@ -91,7 +91,7 @@ class GenericTupleType(FakeType):
         return f'typing.Tuple[{", ".join(map(repr, self.types))}]'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class SequenceTupleType(FakeType):
     type: object
@@ -104,7 +104,7 @@ class SequenceTupleType(FakeType):
         return f'typing.Tuple[{repr(self.type)}, ...]'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class ListType(FakeType):
 
@@ -118,7 +118,7 @@ class ListType(FakeType):
         return 'typing.List'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class GenericListType(FakeType):
     type: object
@@ -131,7 +131,7 @@ class GenericListType(FakeType):
         return f'typing.List[{repr(self.type)}]'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class OptionalType(FakeType):
     def __getitem__(self, subtype):
@@ -144,7 +144,7 @@ class OptionalType(FakeType):
         return 'typing.Optional'
 
 
-@check
+@enforce
 @dataclass(frozen=True)
 class GenericOptionalType(FakeType):
     type: object
