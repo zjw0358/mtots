@@ -27,6 +27,13 @@ class Module(Node):
 
 @typing.enforce
 @dataclass(frozen=True)
+class Import(ModuleLevelStatement):
+    name: str
+    alias: typing.Optional[str]
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class TypeParameter(Node):
     name: str
     base: typing.Optional[TypeExpression]

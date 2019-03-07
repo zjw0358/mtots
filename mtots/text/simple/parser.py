@@ -19,12 +19,25 @@ def Struct(*args, **kwargs):
 
 module = Forward(lambda: Struct(cst.Module, [
     ['statements', Any(
+        All(import_),
         All(global_variable),
         All(function),
         All(class_),
         All('NEWLINE').valmap(()),
     ).repeat().flatten().map(tuple)],
 ]))
+
+import_ = Struct(cst.Import, [
+    'import',
+    ['name', All(
+        All('ID'),
+        All('.', 'ID').getitem(1).repeat(),
+    ).flatten().map('.'.join)],
+    ['alias', Any(
+        All('as', 'ID').getitem(1),
+        All().valmap(None),
+    )],
+])
 
 global_variable = Forward(lambda: Struct(cst.GlobalVariable, [
     'var',
@@ -149,7 +162,8 @@ def parse(data, *, path='<string>'):
 @test.case
 def test_sample():
     # For now, just check parse doesn't throw
-    parse(r"""
+    print(parse(r"""
+    import abc.foo
     class Foo {
         var x: int
     }
@@ -157,5 +171,5 @@ def test_sample():
         var t: T
     }
     def foo(a: int, b: int): void = {}
-    """)
+    """))
 
