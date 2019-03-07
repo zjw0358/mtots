@@ -345,7 +345,7 @@ def _apply_callbacks(mark, result, callbacks):
     for f in callbacks:
         result = f(result)
         if not isinstance(result, MatchResult):
-            raise Error(
+            raise base.ParseError(
                 [mark],
                 f'AllMap callback returned '
                 f'non-MatchResult {repr(result)}')
@@ -405,7 +405,7 @@ class Forward(Parser):
             result = self._match_without_caching(stream)
             stream._cache[key] = (stream.state, result)
         elif stream._cache[key] is None:
-            raise base.Error(
+            raise base.ParseError(
                 [stream.peek.mark],
                 f'Unsupported left recursion detected '
                 f'while parsing at {stream.peek.mark.info} '
@@ -492,7 +492,7 @@ def _handle_direct_left_recursion(fwd: Forward, parser):
 
     if recurse_triples:
         if not base_parsers:
-            raise base.Error(
+            raise base.ParseError(
                 [],
                 f'non-terminal left recursion ({fwd.name})',
             )

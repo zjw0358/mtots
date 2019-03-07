@@ -112,6 +112,10 @@ class LexError(Error):
     pass
 
 
+class ParseError(Error):
+    pass
+
+
 @dataclass(frozen=True)
 class Node:
     mark: typing.Optional[Mark] = dataclasses.field(
