@@ -615,6 +615,15 @@ class Repeat(Parser):
         return f'Repeat({self.parser}, {self.min}, {self.max})'
 
 
+def parse_pattern(*, pattern, data, path, lexer):
+    source = base.Source(data=data, path=path)
+    tokens = lexer.lex(source)
+    match_result = All(pattern, Peek('EOF')).getitem(0).parse(tokens)
+    if not match_result:
+        raise match_result.to_error()
+    return match_result.value
+
+
 @base.Lexer.new
 def test_lexer(lexer):
     @lexer.add('\s+')
