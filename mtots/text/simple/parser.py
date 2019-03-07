@@ -162,7 +162,7 @@ def parse(data, *, path='<string>'):
 @test.case
 def test_sample():
     # For now, just check parse doesn't throw
-    print(parse(r"""
+    parse(r"""
     import abc.foo
     class Foo {
         var x: int
@@ -171,5 +171,5 @@ def test_sample():
         var t: T
     }
     def foo(a: int, b: int): void = {}
-    """))
+    """)
 
