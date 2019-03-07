@@ -108,6 +108,10 @@ class Error(Exception):
         )
 
 
+class LexError(Error):
+    pass
+
+
 @dataclass(frozen=True)
 class Node:
     mark: typing.Optional[Mark] = dataclasses.field(
@@ -196,7 +200,7 @@ class Lexer:
                 stream.i = m.end()
                 return pattern.callback(m, mark)
 
-        raise Error([Mark(source, i, i)], 'Unrecognized token')
+        raise LexError([Mark(source, i, i)], 'Unrecognized token')
 
     def _lex_without_adapters(self, source):
         stream = TextStream(source, 0)
