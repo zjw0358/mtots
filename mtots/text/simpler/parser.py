@@ -47,8 +47,13 @@ import_ = Struct(cst.Import, [
     'import',
     ['name', All(
         All('ID'),
+        All(All('.', 'ID').getitem(1)),
         All('.', 'ID').getitem(1).repeat(),
-    ).flatten().map('.'.join)],
+    ).flatten().map('.'.join).required()],
+    ['alias', Any(
+        All('as', 'ID').getitem(1),
+        All().valmap(None),
+    )],
     Required('NEWLINE')
 ])
 
@@ -152,7 +157,7 @@ def parse(data, *, path='<string>'):
 def test_sanity():
     # For now, just check this doesn't throw
     parse(r"""
-    import abc
+    import abc.foo
     native class List[T] {}
     class Foo < Base {
         string x

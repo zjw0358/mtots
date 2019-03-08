@@ -1,4 +1,5 @@
-from . import cst
+from . import cst as cst_
+from .scopes import Scope
 from mtots.text import base
 from mtots.util import dataclasses
 from mtots.util import typing
@@ -57,9 +58,9 @@ class Field(Markable):
 
 @dataclass
 class Class(Type, Markable):
-    cst: cst.Class
-    complete: bool
+    cst: cst_.Class = dataclasses.field(repr=False, compare=False)
     native: bool
+    scope: Scope
     name: str
     base: typing.Optional[Type]
     type_parameters: typing.Optional[typing.List[TypeParameter]]
@@ -81,7 +82,8 @@ class Parameter(Markable):
 
 @dataclass
 class Function(Markable):
-    complete: bool
+    cst: cst_.Function = dataclasses.field(repr=False, compare=False)
+    scope: Scope
     native: bool
     return_type: Type
     name: str

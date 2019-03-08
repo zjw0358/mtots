@@ -29,6 +29,7 @@ class File(Node):
 @dataclass(frozen=True)
 class Import(FileLevelStatement):
     name: str
+    alias: typing.Optional[str]
 
 
 @typing.enforce

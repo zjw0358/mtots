@@ -13,7 +13,7 @@ _source_root = os.path.join(
     'root',
 )
 
-OBJECT = 'Object'
+OBJECT = '_prelude.Object'
 
 
 def load(data, *, path='<string>'):
@@ -27,56 +27,61 @@ def _import_path_to_file_path(import_path):
     )
 
 
-def _flatten(node: cst.File, include_prelude=True):
-    statements = []
-    seen = set()
-    if include_prelude:
-        statements.extend(
-            _import_flattened_file_statements('_prelude', seen))
-    statements.extend(_flatten_file_to_statements(node, seen))
-    return cst.File(
-        mark=node.mark,
-        statements=tuple(statements),
-    )
+def _find_and_parse(import_path: str):
+    file_path = _import_path_to_file_path(import_path)
+    with open(file_path) as f:
+        data = f.read()
+    return parser.parse(data, path=file_path)
 
 
-def _import_flattened_file_statements(import_path: str, seen: set):
-    if import_path not in seen:
-        seen.add(import_path)
-        file_path = _import_path_to_file_path(import_path)
-        with open(file_path) as f:
-            data = f.read()
-        imported_file_node = parser.parse(data, path=file_path)
-        yield from _flatten_file_to_statements(
-            node=imported_file_node,
-            seen=seen,
-        )
-
-
-def _flatten_file_to_statements(node: cst.File, seen: set):
+def _collect_file_nodes(node: cst.File, seen: set):
     for stmt in node.statements:
         if isinstance(stmt, cst.Import):
-            import_path = stmt.name
+            import_path, _short_name = stmt.name.rsplit('.', 1)
             if import_path not in seen:
-                yield from _import_flattened_file_statements(
-                    import_path=import_path,
-                    seen=seen,
-                )
-        else:
-            yield stmt
+                seen.add(import_path)
+                imported_node = _find_and_parse(import_path)
+                yield from _collect_file_nodes(imported_node, seen)
+                yield import_path, imported_node
 
 
 def resolve(node: cst.File):
-    flattened_node = _flatten(node)
-    scope = Scope(None)
-    _resolve_all(flattened_node, scope)
-    assert scope.parent is None
-    return dict(scope.table)
+    prelude_file_node = _find_and_parse('_prelude')
+    file_nodes = [('_prelude', prelude_file_node)]
+    file_nodes.extend(_collect_file_nodes(node, set()))
+    file_nodes.append(('_main', node))
+    global_scope = Scope(None)
+    file_scope_map = {
+        import_name: Scope(global_scope)
+        for import_name, _ in file_nodes
+    }
+    for import_name, file_scope in file_scope_map.items():
+        file_scope['@prefix'] = import_name + '.'
 
+    def _run_resolve_pass(resolver):
+        for import_name, file_node in file_nodes:
+            file_scope = file_scope_map[import_name]
+            resolver(file_node, file_scope)
 
-def _resolve_all(node, scope):
-    _resolve_global_names(node, scope)
-    _resolve_fields(node, scope)
+    _run_resolve_pass(_resolve_global_names)
+
+    # Elevate everything in '_prelude' to be globally available
+    prelude_scope = file_scope_map['_prelude']
+    for key, prelude_entry_node in prelude_scope.table.items():
+        if key.startswith('@'):
+            continue
+        full_name = prelude_entry_node.name
+        assert full_name.startswith('_prelude.'), full_name
+        short_name = full_name[len('_prelude.'):]
+        assert '.' not in short_name, short_name
+        assert full_name == '_prelude.' + short_name, (full_name, short_name)
+        global_scope[short_name] = prelude_entry_node
+
+    _run_resolve_pass(_resolve_types)
+    # TODO: _run_resolve_pass(resolve_expressions)
+
+    assert global_scope.parent is None
+    return dict(global_scope.table)
 
 
 @util.multimethod(1)
@@ -86,74 +91,153 @@ def _resolve_global_names(on):
 
     @on(cst.File)
     def r(node, scope):
-        assert scope.parent is None
+        assert scope.parent is not None
+        assert scope.parent.parent is None
         for stmt in node.statements:
             _resolve_global_names(stmt, scope)
 
     @on(cst.Function)
     def r(node, scope):
+        short_name = node.name
+        full_name = scope['@prefix'] + short_name
         func = ast.Function(
             mark=node.mark,
-            complete=False,
+            cst=node,
+            scope=Scope(scope),
             native=node.native,
             return_type=None,
-            name=node.name,
+            name=full_name,
             type_parameters=None,
             generic=node.type_parameters is not None,
             parameters=None,
             body=None,
         )
         with scope.push_mark(node.mark):
-            scope[func.name] = func
+            scope.root[full_name] = func
+            scope[short_name] = func
 
     @on(cst.Class)
     def r(node, scope):
+        short_name = node.name
+        full_name = scope['@prefix'] + short_name
         class_ = ast.Class(
             mark=node.mark,
-            complete=False,
             cst=node,
+            scope=Scope(scope),
             native=node.native,
-            name=node.name,
+            name=full_name,
             base=None,
             type_parameters=None,
             generic=node.type_parameters is not None,
             fields=None,
         )
         with scope.push_mark(node.mark):
-            scope[class_.name] = class_
+            scope.root[full_name] = class_
+            scope[short_name] = class_
 
 
-def _compute_base_class_node(class_, stmt, scope):
-    if stmt.base is None:
-        if class_.name == OBJECT:
-            base = None
+@util.multimethod(1)
+def _resolve_types(on):
+    """Resolve types for top level entities:
+
+        * class definitions
+            * generic parameter bound types
+            * base/super type,
+            * field types
+        * function definitions
+            * generic parameter bound types
+            * parameter types
+            * return type
+    """
+
+    @on(cst.File)
+    def r(node, scope):
+        for stmt in node.statements:
+            _resolve_types(stmt, scope)
+
+    @on(cst.Class)
+    def r(node, outer_scope):
+        class_ = outer_scope[node.name]
+        cscope = class_.scope
+        assert cscope.parent is outer_scope
+        class_.base = _compute_base(class_, node.base, cscope)
+        if class_.generic:
+            class_.type_parameters = _compute_type_parameters(
+                node.type_parameters,
+                cscope,
+            )
+        class_.fields = _compute_fields(node.fields, cscope)
+
+    @on(cst.Function)
+    def r(node, outer_scope):
+        function = outer_scope[node.name]
+        fscope = function.scope
+        assert fscope.parent is outer_scope
+        if function.generic:
+            function.type_parameters = _compute_type_parameters(
+                node.type_parameters,
+                fscope,
+            )
+        function.parameters = _compute_parameters(node.parameters, fscope)
+        function.return_type = _eval_type(node.return_type, fscope)
+
+    def _compute_base(class_, cst_base, scope):
+        if cst_base is None:
+            if class_.name == OBJECT:
+                base = None
+            else:
+                base = scope[OBJECT]
+                assert isinstance(base, ast.Class)
         else:
-            base = scope[OBJECT]
-    elif isinstance(stmt.base, (cst.Typename. cst.ReifiedType)):
-        base = scope[stmt.base.name]
-    else:
-        base = scope[stmt]
-    if base and not base.complete:
-        with scope.push_mark(class_.mark, base.mark):
-            raise scope.error(f'Incomplete base type')
+            base = _eval_type(cst_base, scope)
+            if isinstance(base, ast.Class):
+                base_class_node = base
+            elif isinstance(base, ast.ReifiedType):
+                base_class_node = base.class_
+            else:
+                with scope.push_mark(cst_base.mark):
+                    raise scope.error('Not an inheritable type')
+        return base
 
+    def _compute_parameters(cst_parameters, scope):
+        parameters = []
+        for cst_param in cst_parameters:
+            param = ast.Parameter(
+                mark=cst_param.mark,
+                type=_eval_type(cst_param.type, scope),
+                name=cst_param.name,
+            )
+            parameters.append(param)
+            with scope.push_mark(param.mark):
+                scope[param.name] = param
+        return parameters
 
-def _resolve_fields(node, scope):
-    for stmt in node.statements:
-        if isinstance(stmt, cst.Class):
-            class_ = scope[stmt.name]
-            base = _compute_base_class_node(class_, stmt, scope)
-            class_.base = base
-            field_map = {}
-            for field_node in stmt.fields:
-                field = ast.Field(
-                    mark=field_node.mark,
-                    name=field_node.name,
-                    type=_eval_type(field_node.type, scope),
-                )
-                field_map[field.name] = field
-            class_.fields = field_map
-            class_.complete = True
+    def _compute_type_parameters(cst_type_parameters, scope):
+        type_parameters = []
+        for cst_tparam in cst_type_parameters:
+            tparam = ast.TypeParameter(
+                mark=cst_tparam.mark,
+                name=cst_tparam.name,
+                base=(
+                    None if cst_tparam.base is None else
+                    _eval_type(cst_tparam.base, scope)
+                ),
+            )
+            type_parameters.append(tparam)
+            with scope.push_mark(cst_tparam.mark):
+                scope[tparam.name] = tparam
+        return type_parameters
+
+    def _compute_fields(cst_fields, scope):
+        field_map = {}
+        for cst_field in cst_fields:
+            field = ast.Field(
+                mark=cst_field.mark,
+                name=cst_field.name,
+                type=_eval_type(cst_field.type, scope),
+            )
+            field_map[field.name] = field
+        return field_map
 
 
 @util.multimethod(1)
@@ -209,26 +293,17 @@ def _eval_type(on):
                         f'Expected {param_len} type args but got '
                         f'{arg_len} args')
 
-        type_parameters = []
-        class_scope = Scope(scope)
-        for cst_tparam in cst_type_parameters:
-            with class_scope.push_mark(cst_tparam.mark):
-                tparam = ast.TypeParameter(
-                    mark=cst_tparam.mark,
-                    name=cst_tparam.name,
-                    base=(
-                        None if cst_tparam.base is None else
-                        _eval_type(cst_tparam.base, class_scope)
-                    ),
-                )
-                type_parameters.append(tparam)
-                class_scope[tparam.name] = tparam
-        class_.type_parameters = type_parameters
-
         type_arguments = [
-            _eval_type(e, class_scope)
+            _eval_type(e, scope)
             for e in node.type_arguments
         ]
+
+        # NOTE: The type parameter constraints are not validated here
+        # because in order to do so, we need to know the full class
+        # hierarchies to be able to do this, but sometimes we need
+        # to evaluate types in the process of finding out the hierarchies.
+        # In fact, we don't even know if class_.type_parameters
+        # is ready yet.
 
         return ast.ReifiedType(
             mark=node.mark,
@@ -242,12 +317,15 @@ def test_sanity():
     # Just check that this loads without throwing
     load(r"""
     class Foo {
-        List[T] list
+        List[int] list
     }
-    native List[T] pair(T a, T b)
+    native List[T] pair[T](T a, T b)
     int main() = 0
     """)
 
     @test.throws(errors.KeyError)
     def duplicate_class():
-        load('class Object {}')
+        load(r"""
+        class Foo {}
+        class Foo {}
+        """)

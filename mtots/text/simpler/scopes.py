@@ -12,8 +12,10 @@ class Scope:
         self.table = {}
         if parent is None:
             self.stack = []
+            self.root = self
         else:
             self.stack = parent.stack
+            self.root = parent.root
 
     def __getitem__(self, key):
         if key in self.table:
