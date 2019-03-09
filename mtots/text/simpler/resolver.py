@@ -47,8 +47,9 @@ def _collect_file_nodes(node: cst.File, seen: set):
 
 def resolve(node: cst.File):
     prelude_file_node = _find_and_parse('_prelude')
+    seen = {'_prelude', '_main'}
     file_nodes = [('_prelude', prelude_file_node)]
-    file_nodes.extend(_collect_file_nodes(node, set()))
+    file_nodes.extend(_collect_file_nodes(node, seen))
     file_nodes.append(('_main', node))
     global_scope = Scope(None)
     file_scope_map = {
