@@ -483,7 +483,7 @@ def _eval_type(on):
 @test.case
 def test_sanity():
     # Just check that this loads without throwing
-    print(load(r"""
+    load(r"""
     class Foo {
         List[int] list
     }
@@ -492,7 +492,7 @@ def test_sanity():
         print("Hello world!")
         0
     }
-    """))
+    """)
 
     @test.throws(errors.KeyError)
     def duplicate_class():
