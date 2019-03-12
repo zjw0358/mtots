@@ -1,3 +1,3 @@
 native class Object {}
 native class List[T] {}
-native void print(Object x)
+native void print[T](T x)

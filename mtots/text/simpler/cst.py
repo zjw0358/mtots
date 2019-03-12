@@ -146,3 +146,11 @@ class Double(ValueExpression):
 class String(ValueExpression):
     value: str
 
+
+@typing.enforce
+@dataclass(frozen=True)
+class FunctionCall(ValueExpression):
+    name: str
+    type_arguments: typing.Optional[typing.Tuple[TypeExpression, ...]]
+    arguments: typing.Tuple[ValueExpression, ...]
+

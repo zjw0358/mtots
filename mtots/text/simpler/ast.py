@@ -7,13 +7,17 @@ from mtots.util.dataclasses import dataclass
 
 
 class Type:
-    pass
+    def usable_as(self, other_type):
+        return self is other_type
 
 
 @typing.enforce
 @dataclass(frozen=True)
 class PrimitiveType(Type):
     name: str
+
+    def __str__(self):
+        return f'(primitive-type {self.name})'
 
 
 VOID = PrimitiveType('void')
@@ -44,9 +48,16 @@ class TypeParameter(Type, Markable):
     def __hash__(self):
         return id(self)
 
+    def __str__(self):
+        if self.base is None:
+            return f'(type-param {self.name})'
+        else:
+            return f'(type-param {self.name}: {self.base})'
 
-class Expression(Markable):
-    pass
+
+@dataclass(frozen=True)
+class Expression(base.Node):
+    type: Type
 
 
 @typing.enforce
@@ -66,6 +77,17 @@ class Class(Type, Markable):
     type_parameters: typing.Optional[typing.List[TypeParameter]]
     generic: bool
     fields: typing.Dict[str, Field]
+
+    def usable_as(self, other_cls):
+        if not isinstance(other_cls, Class):
+            return False
+
+        while self is not None and self is not other_cls:
+            self = self.base
+        return self is other_cls
+
+    def __str__(self):
+        return f'(class {self.name})'
 
 
 @dataclass
@@ -92,3 +114,33 @@ class Function(Markable):
     parameters: typing.List[Parameter]
     body: typing.Optional[Expression]
 
+
+##############################################################################
+# Expressions
+##############################################################################
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class Block(Expression):
+    expressions: typing.Tuple[Expression, ...]
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class Int(Expression):
+    value: int
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class String(Expression):
+    value: str
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class FunctionCall(Expression):
+    function: Function
+    type_arguments: typing.Optional[typing.Tuple[Type, ...]]
+    arguments: typing.Tuple[Expression, ...]

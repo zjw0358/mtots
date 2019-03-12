@@ -79,7 +79,7 @@ def resolve(node: cst.File):
         global_scope[short_name] = prelude_entry_node
 
     _run_resolve_pass(_resolve_types)
-    # TODO: _run_resolve_pass(resolve_expressions)
+    _run_resolve_pass(_resolve_expressions)
 
     assert global_scope.parent is None
     return dict(global_scope.table)
@@ -242,6 +242,173 @@ def _resolve_types(on):
 
 
 @util.multimethod(1)
+def _resolve_expressions(on):
+
+    @on(cst.File)
+    def r(node, scope):
+        for stmt in node.statements:
+            _resolve_expressions(stmt, scope)
+
+    @on(cst.Class)
+    def r(node, outer_scope):
+        # TODO: Once methods are needed, add code here
+        pass
+
+    @on(cst.Function)
+    def r(node, outer_scope):
+        function = outer_scope[node.name]
+        fscope = function.scope
+        assert fscope.parent is outer_scope
+        if node.body is not None:
+            function.body = _eval_expression(node.body, fscope)
+
+
+@util.multimethod(1)
+def _eval_expression(on):
+
+    @on(cst.Int)
+    def r(node, scope):
+        return ast.Int(
+            mark=node.mark,
+            type=ast.INT,
+            value=node.value,
+        )
+
+    @on(cst.String)
+    def r(node, scope):
+        return ast.String(
+            mark=node.mark,
+            type=ast.STRING,
+            value=node.value,
+        )
+
+    @on(cst.Block)
+    def r(node, outer_scope):
+        block_scope = Scope(outer_scope)
+        exprs = tuple(
+            _eval_expression(e, block_scope) for e in node.expressions
+        )
+        if exprs:
+            type_ = exprs[-1].type
+        else:
+            type_ = ast.VOID
+        return ast.Block(
+            mark=node.mark,
+            type=type_,
+            expressions=exprs,
+        )
+
+    @on(cst.FunctionCall)
+    def r(node, scope):
+        with scope.push_mark(node.mark):
+            fn = scope[node.name]
+            if not isinstance(fn, ast.Function):
+                marks = (
+                    [fn.mark] if isinstance(fn, (ast.Markable, base.Node))
+                    else []
+                )
+                with scope.push_mark(*marks):
+                    raise scope.error(f'{node.name} is not a function')
+        if len(node.arguments) != len(fn.parameters):
+            with scope.push_mark(node.mark, fn.mark):
+                raise scope.error(
+                    f'Expected {len(fn.parameters)} args '
+                    f'but got {len(node.arguments)} parameters')
+        type_param_bindings = {}
+        args = []
+        for param, cst_arg in zip(fn.parameters, node.arguments):
+            raw_arg = _eval_expression(cst_arg, scope)
+            unbound_param_type = param.type
+            param_type = _bind_param_type(
+                unbound_param_type,
+                raw_arg.type,
+                type_param_bindings,
+                scope,
+            )
+            arg = _convert_type(param_type, raw_arg)
+            if arg is None:
+                with scope.push_mark(cst_arg.mark, param.mark):
+                    raise scope.error(
+                        f'Expected parameter {repr(param.name)} '
+                        f'to be type {param_type} but got {raw_arg.type}')
+            args.append(arg)
+        return_type = _bind_param_type(
+            fn.return_type,
+            None,
+            type_param_bindings,
+            scope,
+        )
+        if fn.type_parameters:
+            type_arguments_list = []
+            for type_param in fn.type_parameters:
+                type_arguments_list.append(
+                    type_param_bindings.pop(type_param))
+            assert not type_param_bindings, type_param_bindings
+            type_arguments = tuple(type_arguments_list)
+        else:
+            type_arguments = None
+        return ast.FunctionCall(
+            mark=node.mark,
+            type=return_type,
+            function=fn,
+            type_arguments=type_arguments,
+            arguments=tuple(args),
+        )
+
+
+def _bind_param_type(param_type, arg_type, type_param_bindings, scope):
+    if isinstance(param_type, ast.TypeParameter):
+        if param_type in type_param_bindings:
+            real_param_type = type_param_bindings[param_type]
+            if arg_type is not None and real_param_type != arg_type:
+                raise scope.error(
+                    f'binding {arg_type} to {param_type} failed '
+                    f'({type_param_bindings})')
+            return real_param_type
+        else:
+            type_param_bindings[param_type] = arg_type
+            return arg_type
+    elif isinstance(param_type, ast.ReifiedType):
+        if (isinstance(arg_type, ast.ReifiedType) and
+                param_type.class_ == arg_type.class_ and
+                len(param_type.type_arguments) ==
+                    len(arg_type.type_arguments)):
+            type_arguments = tuple(
+                _bind_param_type(p, a, type_param_bindings, scope)
+                for p, a in zip(
+                    param_type.type_arguments,
+                    arg_type.type_arguments,
+                )
+            )
+            return ast.ReifiedType(
+                mark=param_type.mark,
+                class_=param_type.class_,
+                type_arguments=type_arguments,
+            )
+    else:
+        if arg_type is None or param_type == arg_type:
+            return param_type
+        else:
+            raise scope.error(
+                f'binding {arg_type} to {param_type} failed '
+                f'({type_param_bindings})'
+            )
+
+
+def _convert_type(type_, expr):
+    if expr.type.usable_as(type_):
+        return expr
+
+
+def _expect_type(type_, expr):
+    result = _convert_type(type_, expr)
+    if result is None:
+        with scope.push_mark(expr.mark):
+            raise scope.error(f'Expected {type_} here')
+    return result
+
+
+@util.multimethod(1)
 def _eval_type(on):
 
     @on(cst.VoidType)
@@ -316,13 +483,16 @@ def _eval_type(on):
 @test.case
 def test_sanity():
     # Just check that this loads without throwing
-    load(r"""
+    print(load(r"""
     class Foo {
         List[int] list
     }
     native List[T] pair[T](T a, T b)
-    int main() = 0
-    """)
+    int main() = {
+        print("Hello world!")
+        0
+    }
+    """))
 
     @test.throws(errors.KeyError)
     def duplicate_class():

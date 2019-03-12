@@ -32,7 +32,7 @@ type_expression = Forward(lambda: Any(
     Struct(cst.Typename, [['name', 'ID']]),
 ))
 
-value_expression = Forward(lambda: atom)
+value_expression = Forward(lambda: postfix)
 
 file_ = Forward(lambda: Struct(cst.File, [
     ['statements', Any(
@@ -123,7 +123,7 @@ function = Struct(cst.Function, [
     )],
 ])
 
-atom = Any(
+atom = Forward(lambda: Any(
     All('(', value_expression, Required(')')).getitem(1),
     Struct(cst.Block, [
         '{',
@@ -141,7 +141,31 @@ atom = Any(
     Struct(cst.Int, [['value', 'INT']]),
     Struct(cst.Double, [['value', 'DOUBLE']]),
     Struct(cst.String, [['value', 'STR']]),
-)
+))
+
+arguments = All(
+    '(',
+    value_expression.join(',').map(tuple),
+    Any(',').optional(),
+    Required(')'),
+).getitem(1)
+
+postfix = Forward(lambda: Any(
+    Struct(cst.FunctionCall, [
+        ['name', 'ID'],
+        ['type_arguments', Any(
+            All(
+                '[',
+                type_expression.join(',').map(tuple),
+                Any(',').optional(),
+                ']',
+            ).getitem(1),
+            All().valmap(None),
+        )],
+        ['arguments', arguments],
+    ]),
+    atom,
+))
 
 
 def parse(data, *, path='<string>'):
