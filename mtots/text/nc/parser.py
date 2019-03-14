@@ -141,6 +141,7 @@ atom = Forward(lambda: Any(
     Struct(cst.Int, [['value', 'INT']]),
     Struct(cst.Double, [['value', 'DOUBLE']]),
     Struct(cst.String, [['value', 'STR']]),
+    Struct(cst.Name, [['value', 'ID']]),
 ))
 
 arguments = All(

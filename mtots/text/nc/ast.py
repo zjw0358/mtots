@@ -140,6 +140,20 @@ class String(Expression):
 
 @typing.enforce
 @dataclass(frozen=True)
+class LocalVariableDeclaration(Expression):
+    type: Type
+    name: str
+    expression: typing.Optional[Expression]
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class LocalVariable(Expression):
+    declaration: typing.Union[Parameter, LocalVariableDeclaration]
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class FunctionCall(Expression):
     function: Function
     type_arguments: typing.Optional[typing.Tuple[Type, ...]]

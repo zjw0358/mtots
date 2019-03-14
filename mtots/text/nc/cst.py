@@ -149,6 +149,12 @@ class String(ValueExpression):
 
 @typing.enforce
 @dataclass(frozen=True)
+class Name(ValueExpression):
+    value: str
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class FunctionCall(ValueExpression):
     name: str
     type_arguments: typing.Optional[typing.Tuple[TypeExpression, ...]]

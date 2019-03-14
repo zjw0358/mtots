@@ -82,7 +82,7 @@ def resolve(node: cst.File):
     _run_resolve_pass(_resolve_expressions)
 
     assert global_scope.parent is None
-    return dict(global_scope.table)
+    return {node.name: node for node in global_scope.table.values()}
 
 
 @util.multimethod(1)
@@ -262,6 +262,14 @@ def _resolve_expressions(on):
         if node.body is not None:
             function.body = _eval_expression(node.body, fscope)
 
+        if function.native and function.body:
+            with fscope.push_mark(function.mark):
+                raise fscope.error(f'Native functions cannot have bodies')
+
+        if not function.native and not function.body:
+            with fscope.push_mark(function.mark):
+                raise fscope.error(f'Normal functions must have bodies')
+
 
 @util.multimethod(1)
 def _eval_expression(on):
@@ -280,6 +288,19 @@ def _eval_expression(on):
             mark=node.mark,
             type=ast.STRING,
             value=node.value,
+        )
+
+    @on(cst.Name)
+    def r(node, scope):
+        decl = scope[node.value]
+        decl_types = (ast.Parameter, ast.LocalVariableDeclaration)
+        if not isinstance(decl, decl_types):
+            with scope.push_mark(node.mark):
+                raise scope.error(f'{node.value} is not a variable')
+        return ast.LocalVariable(
+            mark=node.mark,
+            type=decl.type,
+            declaration=decl,
         )
 
     @on(cst.Block)
