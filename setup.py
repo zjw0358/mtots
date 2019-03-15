@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='mtots',
-    version='0.0.1',
+    version='0.0.2',
     description='a collection of utilities',
     author='math4tots',
     author_email='math4tots@gmail.com',
