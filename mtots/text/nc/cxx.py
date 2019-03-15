@@ -191,7 +191,7 @@ def _render_expression(on):
             for expr in exprs[:-1]:
                 parts.append(
                     f'{inner_indent}'
-                    f'{_render_expression(node, depth + 1)};\n')
+                    f'{_render_expression(expr, depth + 1)};\n')
             parts.append(
                 f'{inner_indent}'
                 f'return {_render_expression(exprs[-1], depth + 1)};\n'
@@ -207,6 +207,10 @@ def _render_expression(on):
         arguments = ', '.join(
             _render_expression(e, depth) for e in node.arguments)
         return f'{c_function_name}({arguments})'
+
+    @on(ast.Int)
+    def r(node, depth):
+        return f'{node.value}L'
 
     @on(ast.String)
     def r(node, depth):

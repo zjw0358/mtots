@@ -260,7 +260,11 @@ def _resolve_expressions(on):
         fscope = function.scope
         assert fscope.parent is outer_scope
         if node.body is not None:
-            function.body = _eval_expression(node.body, fscope)
+            function.body = _expect_type(
+                type_=function.return_type,
+                expr=_eval_expression(node.body, fscope),
+                scope=fscope,
+            )
 
         if function.native and function.body:
             with fscope.push_mark(function.mark):
@@ -419,13 +423,26 @@ def _bind_param_type(param_type, arg_type, type_param_bindings, scope):
 def _convert_type(type_, expr):
     if expr.type.usable_as(type_):
         return expr
+    if type_ == ast.VOID:
+        return ast.Block(
+            mark=expr.mark,
+            type=ast.VOID,
+            expressions=(
+                expr,
+                ast.Block(
+                    mark=expr.mark,
+                    type=ast.VOID,
+                    expressions=(),
+                ),
+            ),
+        )
 
 
-def _expect_type(type_, expr):
+def _expect_type(type_, expr, scope):
     result = _convert_type(type_, expr)
     if result is None:
         with scope.push_mark(expr.mark):
-            raise scope.error(f'Expected {type_} here')
+            raise scope.error(f'Expected {type_} here but got {expr.type}')
     return result
 
 
