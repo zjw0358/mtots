@@ -46,22 +46,31 @@ using NCX_DOUBLE = double;
 using NCX_STRING = std::shared_ptr<std::string>;
 struct NCXX_ZUpreludeZDObject;
 template <class T> NCX_STRING NCXX_ZUpreludeZDstr(T x) {
-    return x->ncx_z_str();
+    return x->NCX_str();
 }
 template <> NCX_STRING NCXX_ZUpreludeZDstr(NCX_STRING s) {
     return s;
+}
+"""
+
+_cxx_prologue_hdr = r"""struct NCXX_ZUpreludeZDObject {
+    virtual NCX_STRING NCX_str();
+};
+NCX_VOID NCXX_ZUpreludeZDprintstr(NCX_STRING s);
+NCX_STRING NCX_mkstr(const char *s);
+"""
+
+_cxx_prologue_src = r"""NCX_STRING NCX_mkstr(const char *s) {
+    return std::make_shared<std::string>(s);
+}
+NCX_STRING NCXX_ZUpreludeZDObject::NCX_str() {
+    return NCX_mkstr("<Object>");
 }
 NCX_VOID NCXX_ZUpreludeZDprintstr(NCX_STRING s) {
     std::cout << *s << std::endl;
     return 0;
 }
 """
-
-_cxx_prologue_hdr = r"""struct NCXX_ZUpreludeZDObject {
-};
-"""
-
-_cxx_prologue_src = ''
 
 _cxx_epilogue_src = r"""int main() {
     NCXX_ZUmainZDmain();
@@ -206,7 +215,7 @@ def _render_expression(on):
                 .replace('\n', '\\n')
                 .replace('\\', '\\\\')
         )
-        return f'std::make_shared<std::string>("{contents}")'
+        return f'NCX_mkstr("{contents}")'
 
     @on(ast.LocalVariable)
     def r(node, depth):
