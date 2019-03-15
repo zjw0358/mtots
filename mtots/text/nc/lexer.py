@@ -5,7 +5,7 @@ groupings.
 """
 from . import errors
 from mtots import test
-from mtots.text import base
+from mtots.parser import base
 import re
 
 

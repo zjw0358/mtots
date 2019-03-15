@@ -1,7 +1,7 @@
 from mtots import util
 from mtots.util import dataclasses
 from mtots.util import typing
-from mtots.text import base
+from mtots.parser import base
 
 
 class Type:

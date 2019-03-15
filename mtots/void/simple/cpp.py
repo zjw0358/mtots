@@ -5,7 +5,7 @@ from . import ast
 from . import parser
 from . import types
 from mtots import util
-from mtots.text import base
+from mtots.parser import base
 import contextlib
 
 

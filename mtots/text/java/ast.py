@@ -1,4 +1,4 @@
-from mtots.text import base
+from mtots.parser import base
 from mtots.util.dataclasses import dataclass
 from mtots.util.typing import List, Optional
 

@@ -1,4 +1,4 @@
-from mtots.text import base
+from mtots.parser import base
 
 
 class Error(base.Error):

@@ -6,7 +6,7 @@ from .rstates import ReturnState
 from .scopes import Scope
 from .types import Type
 from mtots import util
-from mtots.text import base
+from mtots.parser import base
 from mtots.util import dataclasses
 import abc
 from mtots.util import typing

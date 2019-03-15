@@ -1,5 +1,5 @@
 from mtots import util
-from mtots.text import base
+from mtots.parser import base
 from mtots.util import dataclasses
 from mtots.util import typing
 

@@ -6,7 +6,7 @@ Some additional syntax for float literal and int literal
 not yet done, are marked with TODO.
 """
 from mtots import test
-from mtots.text import base
+from mtots.parser import base
 import re
 
 

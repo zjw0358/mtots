@@ -1,7 +1,7 @@
 from . import ast
 from . import lexer
 from mtots import test
-from mtots.text import base
+from mtots.parser import base
 
 
 @base.Parser.new

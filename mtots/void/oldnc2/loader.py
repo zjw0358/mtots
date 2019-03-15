@@ -1,6 +1,6 @@
 from . import cst
 from . import parser
-from mtots.text import base
+from mtots.parser import base
 import collections
 import os
 

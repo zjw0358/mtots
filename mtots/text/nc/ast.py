@@ -1,6 +1,6 @@
 from . import cst as cst_
 from .scopes import Scope
-from mtots.text import base
+from mtots.parser import base
 from mtots.util import dataclasses
 from mtots.util import typing
 from mtots.util.dataclasses import dataclass

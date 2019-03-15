@@ -16,13 +16,13 @@ from . import resolver
 from . import types
 from .scopes import Scope
 from mtots import test
-from mtots.text import base
-from mtots.text.combinator import All
-from mtots.text.combinator import Any
-from mtots.text.combinator import AnyTokenBut
-from mtots.text.combinator import Forward
-from mtots.text.combinator import Peek
-from mtots.text.combinator import Token
+from mtots.parser import base
+from mtots.parser.combinator import All
+from mtots.parser.combinator import Any
+from mtots.parser.combinator import AnyTokenBut
+from mtots.parser.combinator import Forward
+from mtots.parser.combinator import Peek
+from mtots.parser.combinator import Token
 import os
 
 MAIN_IMPORT_PATH = '__main__'
