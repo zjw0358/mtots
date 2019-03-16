@@ -8,7 +8,6 @@ from mtots.parser import base
 import re
 
 
-# Python keywords
 KEYWORDS = {
     'False', 'await', 'else', 'import', 'pass',
     'None', 'break', 'except', 'in', 'raise',
@@ -19,14 +18,12 @@ KEYWORDS = {
     'async', 'elif', 'if', 'or', 'yield',
 }
 
-# Python operators
 OPERATORS = {
     '+', '-', '*', '**', '/', '//', '%', '@',
     '<<', '>>', '&', '|', '^', '~',
     '<', '>', '<=', '>=', '==', '!=',
 }
 
-# Python delimiters
 DELIMITERS = {
     '(', ')', '[', ']', '{', '}',
     ',', ':', '.', ';', '@', '=', '->',
@@ -34,7 +31,6 @@ DELIMITERS = {
     '&=', '|=', '^=', '>>=', '<<=', '**=',
 }
 
-# Python reserved symbols
 RESERVED = {
     '$', '?', '`',
 }
