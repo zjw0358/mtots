@@ -56,12 +56,12 @@ def lexer(builder):
         raw_indent = m.group()[1:]
         return [base.Token(mark, 'NEWLINE', raw_indent)]
 
+    @builder.add(r'[^\S\n]*#.*?(?=\r|\n|\$)')
+    def line_comments(m, mark):
+        return [base.Token(mark, 'COMMENT', m.group())]
+
     @builder.add(r'[^\S\n]+')
     def skip_spaces(m, mark):
-        return ()
-
-    @builder.add(r'#.*?(?=\r|\n|\$)')
-    def line_comments(m, mark):
         return ()
 
     @builder.add(r'(?:[^\W\d]|\$)(?:\w|\$)*')
@@ -207,6 +207,7 @@ def foo(
 """)),
         [
             base.Token(None, 'NEWLINE', None),
+            base.Token(None, 'COMMENT', '# Some comments'),
             base.Token(None, 'NEWLINE', None),
             base.Token(None, 'def', None),
             base.Token(None, 'ID', 'foo'),
