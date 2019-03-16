@@ -8,8 +8,8 @@ from mtots.parser import base
 import re
 
 
+# Python keywords
 KEYWORDS = {
-    # Python keywords
     'False', 'await', 'else', 'import', 'pass',
     'None', 'break', 'except', 'in', 'raise',
     'True', 'class', 'finally', 'is', 'return',
@@ -19,22 +19,27 @@ KEYWORDS = {
     'async', 'elif', 'if', 'or', 'yield',
 }
 
-SYMBOLS = tuple(sorted({
-
-    # Python operators
+# Python operators
+OPERATORS = {
     '+', '-', '*', '**', '/', '//', '%', '@',
     '<<', '>>', '&', '|', '^', '~',
     '<', '>', '<=', '>=', '==', '!=',
+}
 
-    # Python delimiters
+# Python delimiters
+DELIMITERS = {
     '(', ')', '[', ']', '{', '}',
     ',', ':', '.', ';', '@', '=', '->',
     '+=', '-=', '*=', '/=', '//=', '%=', '@=',
     '&=', '|=', '^=', '>>=', '<<=', '**=',
+}
 
-    # Python reserved symbols
+# Python reserved symbols
+RESERVED = {
     '$', '?', '`',
-}, reverse=True))
+}
+
+SYMBOLS = tuple(sorted(OPERATORS | DELIMITERS | RESERVED, reverse=True))
 
 _ESCAPE_MAP = {
     'b': '\b',
