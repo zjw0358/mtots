@@ -208,7 +208,6 @@ def foo(
 """)),
         [
             base.Token(None, 'NEWLINE', None),
-            base.Token(None, 'COMMENT', '# Some comments'),
             base.Token(None, 'NEWLINE', None),
             base.Token(None, 'def', None),
             base.Token(None, 'ID', 'foo'),
