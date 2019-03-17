@@ -59,7 +59,7 @@ def lexer(builder):
 
     @builder.add(r'[^\S\n]*#.*?(?=\r|\n|\$)')
     def line_comments(m, mark):
-        return [base.Token(mark, 'COMMENT', m.group())]
+        return ()
 
     @builder.add(r'[^\S\n]+')
     def skip_spaces(m, mark):
