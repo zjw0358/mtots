@@ -13,6 +13,7 @@ KEYWORDS = {
     'true', 'false',
     'class', 'var', 'def',
     'string', 'tuple',
+    'inline',
 
     # Reserved
     'null', 'nil', 'trait', 'struct',
@@ -93,14 +94,6 @@ def lexer(builder):
     def line_comments(m, mark):
         return ()
 
-    @builder.add(r'(?:[^\W\d]|\$)(?:\w|\$)*')
-    def id_or_keyword(m, mark):
-        name = m.group()
-        if name in KEYWORDS:
-            return [base.Token(mark, name, None)]
-        else:
-            return [base.Token(mark, 'ID', name)]
-
     @builder.add(r'(?:\d*\.\d+|\d+\.)')
     def float_literal(m, mark):
         text = m.group()
@@ -146,6 +139,16 @@ def lexer(builder):
                 i = j
         return ''.join(parts)
 
+    @builder.add(r'r"""(?:(?!""").)*?"""')
+    def triple_double_quote_raw_str_literal(m, mark):
+        value = m.group()[4:-3]
+        return [base.Token(mark, 'STR', value)]
+
+    @builder.add(r"r'''(?:(?!''').)*?'''")
+    def triple_single_quote_raw_str_literal(m, mark):
+        value = m.group()[4:-3]
+        return [base.Token(mark, 'STR', value)]
+
     @builder.add(r'"""(?:' + escape_seq + r'|(?!""").)*?"""')
     def triple_double_quote_str_literal(m, mark):
         value = resolve_str(m.group()[3:-3], mark)
@@ -166,11 +169,29 @@ def lexer(builder):
         value = resolve_str(m.group()[1:-1], mark)
         return [base.Token(mark, 'STR', value)]
 
+    @builder.add(r"'(?:[^\r\n'])*'")
+    def single_quote_raw_str_literal(m, mark):
+        value = m.group()[2:-1]
+        return [base.Token(mark, 'STR', value)]
+
+    @builder.add(r'"(?:[^\r\n"])*"')
+    def double_quote_raw_str_literal(m, mark):
+        value = m.group()[2:-1]
+        return [base.Token(mark, 'STR', value)]
+
     symbols_regex = '|'.join(map(re.escape, SYMBOLS))
 
     @builder.add(symbols_regex)
     def separators_and_operators(m, mark):
         return [base.Token(mark, m.group(), None)]
+
+    @builder.add(r'(?:[^\W\d]|\$)(?:\w|\$)*')
+    def id_or_keyword(m, mark):
+        name = m.group()
+        if name in KEYWORDS:
+            return [base.Token(mark, name, None)]
+        else:
+            return [base.Token(mark, 'ID', name)]
 
     def should_skip_newline(stack):
         return stack and stack[-1].type != '{'

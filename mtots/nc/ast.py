@@ -61,6 +61,13 @@ class Expression(base.Node):
 
 
 @typing.enforce
+@dataclass(frozen=True)
+class Inline(base.Node):
+    type: str
+    text: str
+
+
+@typing.enforce
 @dataclass
 class Field(Markable):
     type: Type

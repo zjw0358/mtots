@@ -37,6 +37,7 @@ value_expression = Forward(lambda: postfix)
 file_ = Forward(lambda: Struct(cst.File, [
     ['statements', Any(
         All(import_),
+        All(inline),
         All(class_),
         All(function),
         All('NEWLINE').valmap(()),
@@ -59,6 +60,12 @@ import_ = Struct(cst.Import, [
         All().valmap(None),
     )],
     Required('NEWLINE')
+])
+
+inline = Struct(cst.Inline, [
+    'inline',
+    ['type', Required('STR')],
+    ['text', Required('STR')],
 ])
 
 field = Struct(cst.Field, [

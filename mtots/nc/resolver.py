@@ -97,6 +97,10 @@ def _resolve_global_names(on):
         for stmt in node.statements:
             _resolve_global_names(stmt, scope)
 
+    @on(cst.Inline)
+    def r(node, scope):
+        pass
+
     @on(cst.Function)
     def r(node, scope):
         short_name = node.name
