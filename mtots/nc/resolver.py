@@ -37,7 +37,7 @@ def _find_and_parse(import_path: str):
 def _collect_file_nodes(node: cst.File, seen: set):
     for stmt in node.statements:
         if isinstance(stmt, cst.Import):
-            import_path, _short_name = stmt.name.rsplit('.', 1)
+            import_path = stmt.module
             if import_path not in seen:
                 seen.add(import_path)
                 imported_node = _find_and_parse(import_path)

@@ -28,6 +28,7 @@ class File(Node):
 @typing.enforce
 @dataclass(frozen=True)
 class Import(FileLevelStatement):
+    module: str
     name: str
     alias: typing.Optional[str]
 

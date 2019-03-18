@@ -43,13 +43,17 @@ file_ = Forward(lambda: Struct(cst.File, [
     ).repeat().flatten().map(tuple)],
 ]))
 
+module_name = All(
+    All('ID'),
+    All(All('.', 'ID').getitem(1)),
+    All('.', 'ID').getitem(1).repeat(),
+).flatten().map('.'.join)
+
 import_ = Struct(cst.Import, [
-    'import',
-    ['name', All(
-        All('ID'),
-        All(All('.', 'ID').getitem(1)),
-        All('.', 'ID').getitem(1).repeat(),
-    ).flatten().map('.'.join).required()],
+    'from',
+    ['module', module_name.required()],
+    Required('import'),
+    ['name', Required('ID')],
     ['alias', Any(
         All('as', 'ID').getitem(1),
         All().valmap(None),
