@@ -78,21 +78,37 @@ _cxx_epilogue_src = r"""int main() {
 """
 
 
-def render(ast_table):
-    fwd = StringBuilder()
-    hdr = StringBuilder()
-    src = StringBuilder()
+@util.dataclass
+class _Context:
+    prologue: StringBuilder
+    fwd: StringBuilder
+    hdr: StringBuilder
+    src: StringBuilder
+    epilogue: StringBuilder
 
-    fwd.parts.append(_cxx_prologue_fwd)
-    hdr.parts.append(_cxx_prologue_hdr)
-    src.parts.append(_cxx_prologue_src)
+    def __str__(self):
+        return ''.join(map(str, [
+            self.prologue,
+            self.fwd,
+            self.hdr,
+            self.src,
+            self.epilogue,
+        ]))
+
+
+def render(ast_table):
+    ctx = _Context(
+        prologue=StringBuilder(),
+        fwd=StringBuilder(),
+        hdr=StringBuilder(),
+        src=StringBuilder(),
+        epilogue=StringBuilder(),
+    )
 
     for node in ast_table.values():
-        _render_file_level_statement(node, fwd, hdr, src)
+        _render_file_level_statement(node, ctx)
 
-    src.parts.append(_cxx_epilogue_src)
-
-    return ''.join(map(str, [fwd, hdr, src]))
+    return str(ctx)
 
 
 def _cname(name):
@@ -109,44 +125,65 @@ def _cname(name):
 @util.multimethod(1)
 def _render_file_level_statement(on):
 
+    @on(ast.Inline)
+    def r(node, ctx):
+        if node.type == 'prologue':
+            ctx.prologue.parts.append(node.text)
+        if node.type == 'fwd':
+            ctx.fwd.parts.append(node.text)
+        elif node.type == 'hdr':
+            ctx.hdr.parts.append(node.text)
+        elif node.type == 'src':
+            ctx.src.parts.append(node.text)
+        elif node.type == 'epilogue':
+            ctx.epilogue.parts.append(node.text)
+        else:
+            raise TypeError(f'Invalid C++ inline type {node.type}')
+
     @on(ast.Class)
-    def r(node, fwd, hdr, src):
+    def r(node, ctx):
         c_class_name = _cname(node.name)
 
         if node.native:
-            fwd += f'// (native class {node.name}) {c_class_name}'
+            ctx.fwd += f'// (native class {node.name}) {c_class_name}'
             for field in node.fields:
-                fwd += f'//   {_declare(field.type, _cname(field.name))}'
+                ctx.fwd += f'//   {_declare(field.type, _cname(field.name))}'
             return
 
-        fwd += f'struct {c_class_name};'
-        hdr += f'struct {c_class_name} ' '{'
-        with hdr.indent():
+        if node.generic:
+            tparams = ','.join(
+                f'class {_cname(tparam.name)}'
+                for tparam in node.type_parameters)
+            generic = f'template <{tparams}> '
+        else:
+            generic = ''
+
+        proto = f'{generic}struct {c_class_name}'
+
+        ctx.fwd += f'{proto};'
+        ctx.hdr += f'{proto} ' '{'
+        with ctx.hdr.indent():
             for field in node.fields:
-                hdr += f'{_declare(field.type, _cname(field.name))};'
-        hdr += '};'
+                ctx.hdr += f'{_declare(field.type, _cname(field.name))};'
+        ctx.hdr += '};'
 
     @on(ast.Function)
-    def r(node, fwd, hdr, src):
+    def r(node, ctx):
 
         c_function_name = _cname(node.name)
         proto = _declare(node)
 
         if node.native:
-            fwd += f'// (native function {node.name}) {proto}'
+            ctx.fwd += f'// (native function {node.name}) {proto}'
             return
 
-        if node.generic:
-            out = hdr
-        else:
-            hdr += f'{proto};'
-            out = src
+        ctx.hdr += f'{proto};'
 
         if node.body is not None:
-            out += f'{proto} ' '{'
-            with out.indent():
-                out += f'return {_render_expression(node.body, 1)};'
-            out += '}'
+            ctx.src += f'{proto} ' '{'
+            with ctx.src.indent():
+                ctx.src += f'return {_render_expression(node.body, 1)};'
+            ctx.src += '}'
 
 
 @util.multimethod(1)

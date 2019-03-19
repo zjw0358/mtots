@@ -28,6 +28,7 @@ class File(Node):
 @typing.enforce
 @dataclass(frozen=True)
 class Inline(FileLevelStatement):
+    name: str
     type: str
     text: str
 

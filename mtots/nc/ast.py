@@ -63,6 +63,7 @@ class Expression(base.Node):
 @typing.enforce
 @dataclass(frozen=True)
 class Inline(base.Node):
+    name: str
     type: str
     text: str
 

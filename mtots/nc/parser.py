@@ -64,6 +64,7 @@ import_ = Struct(cst.Import, [
 
 inline = Struct(cst.Inline, [
     'inline',
+    ['name', Required('ID')],
     ['type', Required('STR')],
     ['text', Required('STR')],
 ])

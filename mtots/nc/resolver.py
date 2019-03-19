@@ -99,7 +99,17 @@ def _resolve_global_names(on):
 
     @on(cst.Inline)
     def r(node, scope):
-        pass
+        short_name = node.name
+        full_name = scope['@prefix'] + short_name
+        inline = ast.Inline(
+            mark=node.mark,
+            name=full_name,
+            type=node.type,
+            text=node.text,
+        )
+        with scope.push_mark(node.mark):
+            scope[short_name] = inline
+            scope.root[full_name] = inline
 
     @on(cst.Function)
     def r(node, scope):
@@ -159,6 +169,10 @@ def _resolve_types(on):
     def r(node, scope):
         for stmt in node.statements:
             _resolve_types(stmt, scope)
+
+    @on(cst.Inline)
+    def r(node, scope):
+        pass
 
     @on(cst.Class)
     def r(node, outer_scope):
@@ -252,6 +266,10 @@ def _resolve_expressions(on):
     def r(node, scope):
         for stmt in node.statements:
             _resolve_expressions(stmt, scope)
+
+    @on(cst.Inline)
+    def r(node, scope):
+        pass
 
     @on(cst.Class)
     def r(node, outer_scope):
