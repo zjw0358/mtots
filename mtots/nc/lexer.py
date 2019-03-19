@@ -159,22 +159,22 @@ def lexer(builder):
         value = resolve_str(m.group()[3:-3], mark)
         return [base.Token(mark, 'STR', value)]
 
-    @builder.add(r"'(?:" + escape_seq + r"|[^\r\n'])*'")
+    @builder.add(r"'(?:" + escape_seq + r"|[^\r\n'])*?'")
     def single_quote_str_literal(m, mark):
         value = resolve_str(m.group()[1:-1], mark)
         return [base.Token(mark, 'STR', value)]
 
-    @builder.add(r'"(?:' + escape_seq + r'|[^\r\n"])*"')
+    @builder.add(r'"(?:' + escape_seq + r'|[^\r\n"])*?"')
     def double_quote_str_literal(m, mark):
         value = resolve_str(m.group()[1:-1], mark)
         return [base.Token(mark, 'STR', value)]
 
-    @builder.add(r"'(?:[^\r\n'])*'")
+    @builder.add(r"'(?:[^\r\n'])*?'")
     def single_quote_raw_str_literal(m, mark):
         value = m.group()[2:-1]
         return [base.Token(mark, 'STR', value)]
 
-    @builder.add(r'"(?:[^\r\n"])*"')
+    @builder.add(r'"(?:[^\r\n"])*?"')
     def double_quote_raw_str_literal(m, mark):
         value = m.group()[2:-1]
         return [base.Token(mark, 'STR', value)]
@@ -331,6 +331,35 @@ def test_triple_quote():
             base.Token(None, 'STR', 'hi'),
             base.Token(None, 'STR', 'world'),
             base.Token(None, ')', None),
+            base.Token(None, 'EOF', None),
+        ],
+    )
+
+
+@test.case
+def test_funny_sample():
+    test.equal(
+        list(lex_string(r"""
+          print("Hello world!")
+          File file = fopen("setup.py", "r")
+        """)),
+        [
+            base.Token(None, 'NEWLINE', None),
+            base.Token(None, 'ID', 'print'),
+            base.Token(None, '(', None),
+            base.Token(None, 'STR', 'Hello world!'),
+            base.Token(None, ')', None),
+            base.Token(None, 'NEWLINE', None),
+            base.Token(None, 'ID', 'File'),
+            base.Token(None, 'ID', 'file'),
+            base.Token(None, '=', None),
+            base.Token(None, 'ID', 'fopen'),
+            base.Token(None, '(', None),
+            base.Token(None, 'STR', 'setup.py'),
+            base.Token(None, ',', None),
+            base.Token(None, 'STR', 'r'),
+            base.Token(None, ')', None),
+            base.Token(None, 'NEWLINE', None),
             base.Token(None, 'EOF', None),
         ],
     )
