@@ -128,8 +128,17 @@ class ReifiedType(TypeExpression):
 
 @typing.enforce
 @dataclass(frozen=True)
+class LocalVariableDeclaration(Node):
+    type: typing.Optional[TypeExpression]
+    name: str
+    expression: ValueExpression
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class Block(ValueExpression):
-    expressions: typing.Tuple[ValueExpression, ...]
+    expressions: typing.Tuple[
+        typing.Union[ValueExpression, LocalVariableDeclaration], ...]
 
 
 @typing.enforce

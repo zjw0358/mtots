@@ -139,6 +139,7 @@ def _render_file_level_statement(on):
         with ctx.hdr.indent():
             for field in node.fields:
                 ctx.hdr += f'{_declare(field.type, _cname(field.name))};'
+            ctx.hdr += f'virtual ~{c_class_name}()' '{}'
         ctx.hdr += '};'
 
     @on(ast.Function)
@@ -189,6 +190,17 @@ def _declare(on):
     def r(type_, dtor):
         return f'{_primitive_type_map[type_.name]} {dtor}'
 
+    @on(ast.Class)
+    def r(type_, dtor):
+        return f'NCX_PTR<{_cname(type_.name)}> {dtor}'
+
+    @on(ast.ReifiedType)
+    def r(type_, dtor):
+        class_ = type_.class_
+        args = ','.join(
+            _declare(arg, '').strip() for arg in type_.type_arguments)
+        return f'NCX_PTR<{_cname(class_.name)}<{args}>> {dtor}'
+
 
 @util.multimethod(1)
 def _render_expression(on):
@@ -211,6 +223,12 @@ def _render_expression(on):
             parts.append(f'{inner_indent}return 0;\n')
         parts.append('  ' * depth + '})()')
         return ''.join(parts)
+
+    @on(ast.LocalVariableDeclaration)
+    def r(node, depth):
+        cname = _cname(node.name)
+        expr = _render_expression(node.expression, depth)
+        return f'{_declare(node.type, cname)} = {expr}'
 
     @on(ast.FunctionCall)
     def r(node, depth):

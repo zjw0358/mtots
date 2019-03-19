@@ -134,12 +134,25 @@ function = Struct(cst.Function, [
     )],
 ])
 
+local_variable_declaration = Struct(cst.LocalVariableDeclaration, [
+    ['type', Any(
+        type_expression,
+        All('final').valmap(None),
+    )],
+    ['name', 'ID'],
+    Required('='),
+    ['expression', value_expression.required()],
+])
+
 atom = Forward(lambda: Any(
     All('(', value_expression, Required(')')).getitem(1),
     Struct(cst.Block, [
         '{',
         Any('NEWLINE').optional(),
-        ['expressions', value_expression.join('NEWLINE').map(tuple)],
+        ['expressions', Any(
+            local_variable_declaration,
+            value_expression,
+        ).join('NEWLINE').map(tuple)],
         Any('NEWLINE').optional(),
         Required('}'),
     ]),

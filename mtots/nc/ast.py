@@ -27,6 +27,10 @@ DOUBLE = PrimitiveType('double')
 STRING = PrimitiveType('string')
 
 
+class BaseVariableDeclaration:
+    pass
+
+
 @dataclass
 class Markable:
     mark: typing.Optional[base.Mark] = dataclasses.field(
@@ -105,9 +109,10 @@ class ReifiedType(Type, Markable):
 
 
 @dataclass
-class Parameter(Markable):
+class Parameter(Markable, BaseVariableDeclaration):
     type: Type
     name: str
+    mutable = True
 
 
 @dataclass
@@ -148,10 +153,11 @@ class String(Expression):
 
 @typing.enforce
 @dataclass(frozen=True)
-class LocalVariableDeclaration(Expression):
+class LocalVariableDeclaration(Expression, BaseVariableDeclaration):
+    mutable: bool
     type: Type
     name: str
-    expression: typing.Optional[Expression]
+    expression: Expression
 
 
 @typing.enforce

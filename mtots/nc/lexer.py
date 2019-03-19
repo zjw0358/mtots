@@ -12,7 +12,7 @@ import re
 KEYWORDS = {
     'true', 'false',
     'class', 'var', 'def',
-    'string', 'tuple',
+    'string', 'tuple', 'bool',
     'inline',
 
     # Reserved

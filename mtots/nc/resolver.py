@@ -102,7 +102,8 @@ def _resolve_global_names(on):
         full_name = f'{node.module}.{node.name}'
         with scope.push_mark(node.mark):
             imported_node = scope.root[full_name]
-        scope[node.alias] = imported_node
+        alias = node.name if node.alias is None else node.alias
+        scope[alias] = imported_node
 
     @on(cst.Inline)
     def r(node, scope):
@@ -351,6 +352,10 @@ def _eval_expression(on):
             _eval_expression(e, block_scope) for e in node.expressions
         )
         if exprs:
+            if isinstance(exprs[-1], ast.LocalVariableDeclaration):
+                with outer_scope.push_mark(exprs[-1].mark):
+                    raise outer_scope.error(
+                        'Useless variable declaration at end of block')
             type_ = exprs[-1].type
         else:
             type_ = ast.VOID
@@ -359,6 +364,25 @@ def _eval_expression(on):
             type=type_,
             expressions=exprs,
         )
+
+    @on(cst.LocalVariableDeclaration)
+    def r(node, scope):
+        expr = _eval_expression(node.expression, scope)
+        if node.type is None:
+            vartype = expr.type
+        else:
+            vartype = _eval_type(node.type, scope)
+            expr = _expect_type(vartype, expr, scope)
+
+        decl = ast.LocalVariableDeclaration(
+            mark=node.mark,
+            mutable=bool(node.type),
+            name=node.name,
+            type=vartype,
+            expression=expr,
+        )
+        scope[decl.name] = decl
+        return decl
 
     @on(cst.FunctionCall)
     def r(node, scope):
