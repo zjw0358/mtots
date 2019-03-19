@@ -46,7 +46,6 @@ file_ = Forward(lambda: Struct(cst.File, [
 
 module_name = All(
     All('ID'),
-    All(All('.', 'ID').getitem(1)),
     All('.', 'ID').getitem(1).repeat(),
 ).flatten().map('.'.join)
 

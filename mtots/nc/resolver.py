@@ -97,6 +97,13 @@ def _resolve_global_names(on):
         for stmt in node.statements:
             _resolve_global_names(stmt, scope)
 
+    @on(cst.Import)
+    def r(node, scope):
+        full_name = f'{node.module}.{node.name}'
+        with scope.push_mark(node.mark):
+            imported_node = scope.root[full_name]
+        scope[node.alias] = imported_node
+
     @on(cst.Inline)
     def r(node, scope):
         short_name = node.name
@@ -169,6 +176,10 @@ def _resolve_types(on):
     def r(node, scope):
         for stmt in node.statements:
             _resolve_types(stmt, scope)
+
+    @on(cst.Import)
+    def r(node, scope):
+        pass
 
     @on(cst.Inline)
     def r(node, scope):
@@ -266,6 +277,10 @@ def _resolve_expressions(on):
     def r(node, scope):
         for stmt in node.statements:
             _resolve_expressions(stmt, scope)
+
+    @on(cst.Import)
+    def r(node, scope):
+        pass
 
     @on(cst.Inline)
     def r(node, scope):
