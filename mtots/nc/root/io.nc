@@ -66,4 +66,4 @@ native class File {}
 native File open(string path, string mode)
 native void close(File file)
 native bool eof(File file)
-native string read(File file)
+native string read(File file)  # TODO: return Try[string] instead
