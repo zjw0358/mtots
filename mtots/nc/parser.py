@@ -129,7 +129,7 @@ function = Struct(cst.Function, [
     ['type_parameters', maybe_type_parameters],
     ['parameters', parameters.required()],
     ['body', Any(
-        All('NEWLINE').valmap(None),
+        Peek('NEWLINE').valmap(None),
         All('=', value_expression).required().getitem(1),
     )],
 ])
