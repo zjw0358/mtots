@@ -45,11 +45,9 @@ def _collect_file_nodes(node: cst.File, seen: set):
                 yield import_path, imported_node
 
 
-def _get_reified_bindings(reified_type, scope):
-    class_ = reified_type.class_
+def _get_reified_bindings(*, type_parameters, type_arguments, scope):
     bindings = {}
-    for param, arg in zip(
-            class_.type_parameters, reified_type.type_arguments):
+    for param, arg in zip(type_parameters, type_arguments):
         bindings[param] = arg
     return bindings
 
@@ -96,7 +94,11 @@ def _get_all_fields(on):
     def r(type_, scope):
         cclass_ = type_.class_
         field_map = {}
-        bindings = _get_reified_bindings(type_, scope)
+        bindings = _get_reified_bindings(
+            type_parameters=type_.class_.type_parameters,
+            type_arguments=type_.type_arguments,
+            scope=scope,
+        )
         for key, raw_field in class_.all_fields.items():
             field_type = _apply_reified_bindings(
                 raw_field.type,
@@ -486,39 +488,62 @@ def _eval_expression(on):
                 raise scope.error(
                     f'Expected {len(fn.parameters)} args '
                     f'but got {len(node.arguments)} parameters')
-        type_param_bindings = {}
-        args = []
-        for param, cst_arg in zip(fn.parameters, node.arguments):
-            raw_arg = _eval_expression(cst_arg, scope)
-            unbound_param_type = param.type
-            param_type = _bind_param_type(
-                unbound_param_type,
-                raw_arg.type,
-                type_param_bindings,
-                scope,
+
+        raw_args = [_eval_expression(arg, scope) for arg in node.arguments]
+
+        if fn.generic:
+            if node.type_arguments is None:
+                type_arguments = tuple(_deduce_type_arguments(
+                    type_parameters=fn.type_parameters,
+                    parameters=fn.parameters,
+                    raw_args=raw_args,
+                    scope=scope,
+                ))
+            else:
+                type_arguments = tuple(
+                    _eval_type(t, scope) for t in node.type_arguments
+                )
+
+            generic_bindings = _get_reified_bindings(
+                type_parameters=fn.type_parameters,
+                type_arguments=type_arguments,
+                scope=scope,
             )
+        else:
+            if node.type_arguments is None:
+                type_arguments = None
+            else:
+                with scope.push_mark(node.mark, fn.mark):
+                    raise scope.error(
+                        f'{node.name} is not a generic function')
+
+        args = []
+        for param, raw_arg in zip(fn.parameters, raw_args):
+            if fn.generic:
+                param_type = _apply_reified_bindings(
+                    param.type,
+                    generic_bindings,
+                    scope,
+                )
+            else:
+                param_type = param.type
             arg = _convert_type(param_type, raw_arg)
             if arg is None:
-                with scope.push_mark(cst_arg.mark, param.mark):
+                with scope.push_mark(raw_arg.mark, param.mark):
                     raise scope.error(
                         f'Expected parameter {repr(param.name)} '
                         f'to be type {param_type} but got {raw_arg.type}')
             args.append(arg)
-        return_type = _bind_param_type(
-            fn.return_type,
-            None,
-            type_param_bindings,
-            scope,
-        )
-        if fn.type_parameters:
-            type_arguments_list = []
-            for type_param in fn.type_parameters:
-                type_arguments_list.append(
-                    type_param_bindings.pop(type_param))
-            assert not type_param_bindings, type_param_bindings
-            type_arguments = tuple(type_arguments_list)
+
+        if fn.generic:
+            return_type = _apply_reified_bindings(
+                fn.return_type,
+                generic_bindings,
+                scope,
+            )
         else:
-            type_arguments = None
+            return_type = fn.return_type
+
         return ast.FunctionCall(
             mark=node.mark,
             type=return_type,
@@ -527,44 +552,57 @@ def _eval_expression(on):
             arguments=tuple(args),
         )
 
-
-def _bind_param_type(param_type, arg_type, type_param_bindings, scope):
-    if isinstance(param_type, ast.TypeParameter):
-        if param_type in type_param_bindings:
-            real_param_type = type_param_bindings[param_type]
-            if arg_type is not None and real_param_type != arg_type:
-                raise scope.error(
-                    f'binding {arg_type} to {param_type} failed '
-                    f'({type_param_bindings})')
-            return real_param_type
-        else:
-            type_param_bindings[param_type] = arg_type
-            return arg_type
-    elif isinstance(param_type, ast.ReifiedType):
-        if (isinstance(arg_type, ast.ReifiedType) and
-                param_type.class_ == arg_type.class_ and
-                len(param_type.type_arguments) ==
-                    len(arg_type.type_arguments)):
-            type_arguments = tuple(
-                _bind_param_type(p, a, type_param_bindings, scope)
-                for p, a in zip(
-                    param_type.type_arguments,
-                    arg_type.type_arguments,
+    def _unify_types(*, param_type, arg_type, bindings, scope):
+        """Help deduce type parameters by looking at the type
+        of the value argument types, and the unbound parameter types,
+        and greedily binding type parameters.
+        """
+        if isinstance(param_type, ast.TypeParameter):
+            if param_type in bindings:
+                reified_param_type = bindings[param_type]
+                if reified_param_type == arg_type:
+                    return reified_param_type
+            else:
+                bindings[param_type] = arg_type
+                return arg_type
+        elif isinstance(param_type, ast.ReifiedType):
+            if (isinstance(arg_type, ast.ReifiedType) and
+                    param_type.class_ == arg_type.class_ and
+                    len(param_type.type_arguments) ==
+                        len(arg_type.type_arguments)):
+                type_arguments = [
+                    _unify_types(p, a, bindings, scope)
+                    for p, a in zip(
+                        param_type.type_arguments,
+                        arg_type.type_arguments,
+                    )
+                ]
+                return ast.ReifiedType(
+                    mark=param_type.mark,
+                    class_=param_type.class_,
+                    type_arguments=type_arguments,
                 )
+        elif param_type == arg_type:
+            return arg_type
+        raise scope.error(
+            f'binding {arg_type} to {param_type} failed '
+            f'({bindings})')
+
+    def _deduce_type_arguments(
+            *, type_parameters, parameters, raw_args, scope):
+        bindings = {}
+        for param, raw_arg in zip(parameters, raw_args):
+            _unify_types(
+                param_type=param.type,
+                arg_type=raw_arg.type,
+                bindings=bindings,
+                scope=scope,
             )
-            return ast.ReifiedType(
-                mark=param_type.mark,
-                class_=param_type.class_,
-                type_arguments=type_arguments,
-            )
-    else:
-        if arg_type is None or param_type == arg_type:
-            return param_type
-        else:
-            raise scope.error(
-                f'binding {arg_type} to {param_type} failed '
-                f'({type_param_bindings})'
-            )
+        type_args = []
+        for type_param in type_parameters:
+            type_args.append(bindings.pop(type_param))
+        assert not bindings, bindings
+        return type_args
 
 
 def _convert_type(type_, expr):
