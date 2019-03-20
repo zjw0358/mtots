@@ -209,7 +209,7 @@ def parse(data, *, path='<string>'):
 def test_sanity():
     # For now, just check this doesn't throw
     parse(r"""
-    import abc.foo
+    from abc import foo
     native class List[T] {}
     class Foo < Base {
         string x
