@@ -83,6 +83,7 @@ class Field(Markable):
 class Class(Type, Markable):
     cst: cst_.Class = dataclasses.field(repr=False, compare=False)
     native: bool
+    inheritable: bool
     scope: Scope
     name: str
     base: typing.Optional[Type]

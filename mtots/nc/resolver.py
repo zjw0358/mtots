@@ -148,6 +148,7 @@ def _resolve_global_names(on):
             cst=node,
             scope=Scope(scope),
             native=node.native,
+            inheritable=node.is_trait,
             name=full_name,
             base=None,
             type_parameters=None,
@@ -228,6 +229,11 @@ def _resolve_types(on):
             else:
                 with scope.push_mark(cst_base.mark):
                     raise scope.error('Not an inheritable type')
+        if base is not None and not base.inheritable:
+            with scope.push_mark(class_.mark, base.mark):
+                raise scope.error(
+                    f'{base.name} is not a trait class '
+                    f'(you can only inherit from traits)')
         return base
 
     def _compute_parameters(cst_parameters, scope):

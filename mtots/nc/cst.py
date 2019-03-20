@@ -59,6 +59,7 @@ class TypeParameter(Node):
 @dataclass(frozen=True)
 class Class(FileLevelStatement):
     native: bool
+    is_trait: bool
     name: str
     type_parameters: typing.Optional[typing.Tuple[TypeParameter, ...]]
     base: typing.Optional[TypeExpression]

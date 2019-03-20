@@ -1,4 +1,4 @@
-native class Object {}
+native trait Object {}
 native class Try[T] {}
 native class List[T] {}
 native Try[T] YES[T](T t)

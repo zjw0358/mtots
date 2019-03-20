@@ -94,7 +94,10 @@ maybe_type_parameters = Any(
 
 class_ = Struct(cst.Class, [
     ['native', Any('native').optional()],
-    'class',
+    ['is_trait', Any(
+        All('class').valmap(False),
+        All('trait').valmap(True),
+    )],
     ['name', Required('ID')],
     ['type_parameters', maybe_type_parameters],
     ['base', Any(
