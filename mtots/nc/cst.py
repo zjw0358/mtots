@@ -199,3 +199,9 @@ class FunctionCall(ValueExpression):
     type_arguments: typing.Optional[typing.Tuple[TypeExpression, ...]]
     arguments: typing.Tuple[ValueExpression, ...]
 
+
+@typing.enforce
+@dataclass(frozen=True)
+class New(ValueExpression):
+    type: TypeExpression
+

@@ -210,14 +210,26 @@ def _declare(on):
 
     @on(ast.Class)
     def r(type_, dtor):
-        return f'NCX_PTR<{_cname(type_.name)}> {dtor}'
+        return f'NCX_PTR<{_flat_c_type_name(type_)}> {dtor}'
 
     @on(ast.ReifiedType)
     def r(type_, dtor):
+        return f'NCX_PTR<{_flat_c_type_name(type_)}> {dtor}'
+
+
+@util.multimethod(1)
+def _flat_c_type_name(on):
+
+    @on(ast.Class)
+    def r(class_):
+        return _cname(class_.name)
+
+    @on(ast.ReifiedType)
+    def r(type_):
         class_ = type_.class_
         args = ','.join(
             _declare(arg, '').strip() for arg in type_.type_arguments)
-        return f'NCX_PTR<{_cname(class_.name)}<{args}>> {dtor}'
+        return f'{_cname(class_.name)}<{args}>'
 
 
 @util.multimethod(1)
@@ -247,6 +259,11 @@ def _render_expression(on):
         cname = _cname(node.name)
         expr = _render_expression(node.expression, depth)
         return f'{_declare(node.type, cname)} = {expr}'
+
+    @on(ast.New)
+    def r(node, depth):
+        c_type_name = _flat_c_type_name(node.type)
+        return f'std::make_shared<{c_type_name}>()'
 
     @on(ast.FunctionCall)
     def r(node, depth):

@@ -289,6 +289,12 @@ class LocalVariable(Expression):
 
 @typing.enforce
 @dataclass(frozen=True)
+class New(Expression):
+    pass
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class FunctionCall(Expression):
     function: Function
     type_arguments: typing.Optional[typing.Tuple[Type, ...]]

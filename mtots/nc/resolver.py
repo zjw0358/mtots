@@ -484,6 +484,17 @@ def _eval_expression(on):
         scope[decl.name] = decl
         return decl
 
+    @on(cst.New)
+    def r(node, scope):
+        type_ = _eval_type(node.type, scope)
+        if not isinstance(type_, (ast.Class, ast.ReifiedType)):
+            with scope.push_mark(node.mark):
+                raise scope.error(f'You can only new Class types')
+        return ast.New(
+            mark=node.mark,
+            type=type_,
+        )
+
     @on(cst.FunctionCall)
     def r(node, scope):
         with scope.push_mark(node.mark):

@@ -17,6 +17,9 @@ trait B < A {
 class C < B {}
 
 void main() = {
+  final c = new(C)
+  # print(c.foo())
+
   final file = fopen("setup.py", "r")
   print("Hello world!")
   final data = fread(file)

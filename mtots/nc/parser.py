@@ -180,6 +180,12 @@ atom = Forward(lambda: Any(
     Struct(cst.Double, [['value', 'DOUBLE']]),
     Struct(cst.String, [['value', 'STR']]),
     Struct(cst.Name, [['value', 'ID']]),
+    Struct(cst.New, [
+        'new',
+        Required('('),
+        ['type', type_expression.required()],
+        Required(')'),
+    ]),
 ))
 
 arguments = All(
