@@ -218,7 +218,7 @@ def _resolve_types(on):
             if class_.name == OBJECT:
                 base = None
             else:
-                base = scope[OBJECT]
+                base = scope.root[OBJECT]
                 assert isinstance(base, ast.Class)
         else:
             base = _eval_type(cst_base, scope)
