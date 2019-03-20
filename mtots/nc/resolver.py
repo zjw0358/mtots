@@ -121,6 +121,7 @@ def resolve(node: cst.File):
     name_file_node_pairs.extend(_collect_file_nodes(node, seen))
     name_file_node_pairs.append(('_main', node))
     global_scope = Scope(None)
+    global_scope['@after_resolve_types_callbacks'] = []
     file_scope_map = {
         import_name: Scope(global_scope)
         for import_name, _ in name_file_node_pairs
@@ -148,6 +149,9 @@ def resolve(node: cst.File):
         global_scope[short_name] = prelude_entry_node
 
     _run_resolve_pass(_resolve_types)
+    for callback in global_scope['@after_resolve_types_callbacks']:
+        callback()
+    global_scope.table.pop('@after_resolve_types_callbacks')
     _run_resolve_pass(_resolve_expressions)
 
     assert global_scope.parent is None
@@ -688,18 +692,37 @@ def _eval_type(on):
             for e in node.type_arguments
         ]
 
-        # NOTE: The type parameter constraints are not validated here
-        # because in order to do so, we need to know the full class
-        # hierarchies to be able to do this, but sometimes we need
-        # to evaluate types in the process of finding out the hierarchies.
-        # In fact, we don't even know if class_.type_parameters
-        # is ready yet.
-
-        return ast.ReifiedType(
+        reified_type = ast.ReifiedType(
             mark=node.mark,
             class_=class_,
             type_arguments=type_arguments,
         )
+
+        def _validate_reified_type():
+            # We play this callback dance because we need to sometimes
+            # call _eval_type before all types have fully materialized.
+            # E.g. class_.type_parameters might not be ready yet.
+            # So for cases in which they aren't, we save the validation
+            # code in a callback to be called at a later point
+            # after all types have been fully resolved.
+            for tparam, targ, cst_targ in zip(
+                    class_.type_parameters,
+                    type_arguments,
+                    node.type_arguments):
+                if (tparam.base is not None and
+                        not targ.usable_as(tparam.base)):
+                    with scope.push_mark(cst_targ.mark, tparam.mark):
+                        raise scope.error(
+                            f'{targ} is not usable as {tparam.base}')
+
+        if '@after_resolve_types_callbacks' in scope.root.table:
+            scope.root['@after_resolve_types_callbacks'].append(
+                _validate_reified_type,
+            )
+        else:
+            _validate_reified_type()
+
+        return reified_type
 
 
 @test.case
