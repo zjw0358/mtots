@@ -209,6 +209,12 @@ postfix = Forward(lambda: Any(
         )],
         ['arguments', arguments],
     ]),
+    Struct(cst.MethodCall, [
+        ['owner', atom],
+        '.',
+        ['name', 'ID'],
+        ['arguments', arguments],
+    ]),
     atom,
 ))
 

@@ -18,7 +18,9 @@ class C < B {}
 
 void main() = {
   final c = new(C)
-  # print(c.foo())
+  print(c.foo())
+  final a = new(A)
+  print(a.foo())
 
   final file = fopen("setup.py", "r")
   print("Hello world!")

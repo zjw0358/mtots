@@ -134,8 +134,13 @@ def _render_file_level_statement(on):
 
         proto = f'{generic}struct {c_class_name}'
 
+        if node.base:
+            super_type = f': {_flat_c_type_name(node.base)}'
+        else:
+            super_type = ''
+
         ctx.fwd += f'{proto};'
-        ctx.hdr += f'{proto} ' '{'
+        ctx.hdr += f'{proto}{super_type} ' '{'
         with ctx.hdr.indent():
             for field in node.own_fields.values():
                 ctx.hdr += f'{_declare(field.type, _cname(field.name))};'
@@ -271,6 +276,14 @@ def _render_expression(on):
         arguments = ', '.join(
             _render_expression(e, depth) for e in node.arguments)
         return f'{c_function_name}({arguments})'
+
+    @on(ast.MethodCall)
+    def r(node, depth):
+        owner = _render_expression(node.owner, depth)
+        c_method_name = _cname(node.method.name)
+        arguments = ', '.join(
+            _render_expression(e, depth) for e in node.arguments)
+        return f'{owner}->{c_method_name}({arguments})'
 
     @on(ast.Int)
     def r(node, depth):

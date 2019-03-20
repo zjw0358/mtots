@@ -301,6 +301,14 @@ class FunctionCall(Expression):
     arguments: typing.Tuple[Expression, ...]
 
 
+@typing.enforce
+@dataclass(frozen=True)
+class MethodCall(Expression):
+    owner: Expression
+    method: Method
+    arguments: typing.Tuple[Expression, ...]
+
+
 @util.multimethod(1)
 def _apply_reified_bindings(on):
 

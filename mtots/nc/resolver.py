@@ -572,6 +572,33 @@ def _eval_expression(on):
             arguments=tuple(args),
         )
 
+    @on(cst.MethodCall)
+    def r(node, scope):
+        owner = _eval_expression(node.owner, scope)
+        all_methods = owner.type.all_methods
+        if node.name not in all_methods:
+            with scope.push_mark(node.mark):
+                raise scope.error(
+                    f'No such method {node.name} on {owner.type}')
+        method = all_methods[node.name]
+        raw_args = [_eval_expression(arg, scope) for arg in node.arguments]
+        args = []
+        for param, raw_arg in zip(method.parameters, raw_args):
+            arg = _convert_type(param.type, raw_arg)
+            if arg is None:
+                with scope.push_mark(raw_arg.mark, param.mark):
+                    raise scope.error(
+                        f'Expected parameter {repr(param.name)} '
+                        f'to be type {param_type} but got {raw_arg.type}')
+            args.append(arg)
+        return ast.MethodCall(
+            mark=node.mark,
+            type=method.return_type,
+            owner=owner,
+            method=method,
+            arguments=tuple(args),
+        )
+
     def _unify_types(*, param_type, arg_type, bindings, scope):
         """Help deduce type parameters by looking at the type
         of the value argument types, and the unbound parameter types,

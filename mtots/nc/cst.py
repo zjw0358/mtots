@@ -202,6 +202,14 @@ class FunctionCall(ValueExpression):
 
 @typing.enforce
 @dataclass(frozen=True)
+class MethodCall(ValueExpression):
+    owner: ValueExpression
+    name: str
+    arguments: typing.Tuple[ValueExpression, ...]
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class New(ValueExpression):
     type: TypeExpression
 
