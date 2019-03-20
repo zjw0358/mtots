@@ -423,8 +423,7 @@ def _eval_expression(on):
     @on(cst.Name)
     def r(node, scope):
         decl = scope[node.value]
-        decl_types = (ast.Parameter, ast.LocalVariableDeclaration)
-        if not isinstance(decl, decl_types):
+        if not isinstance(decl, ast.BaseVariableDeclaration):
             with scope.push_mark(node.mark):
                 raise scope.error(f'{node.value} is not a variable')
         return ast.LocalVariable(
