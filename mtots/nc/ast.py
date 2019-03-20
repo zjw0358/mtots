@@ -92,6 +92,26 @@ class Field(Markable):
 
 
 @dataclass
+class Parameter(Markable, BaseVariableDeclaration):
+    type: Type
+    name: str
+    mutable = True
+
+
+@dataclass
+class Function(Markable):
+    cst: cst_.Function = dataclasses.field(repr=False, compare=False)
+    scope: Scope
+    native: bool
+    return_type: Type
+    name: str
+    type_parameters: typing.Optional[typing.List[TypeParameter]]
+    generic: bool
+    parameters: typing.List[Parameter]
+    body: typing.Optional[Expression]
+
+
+@dataclass
 class Class(Type, Markable):
     cst: cst_.Class = dataclasses.field(repr=False, compare=False)
     native: bool
@@ -147,26 +167,6 @@ class ReifiedType(Type, base.Node):
                     bindings=bindings,
                 )
         return self._base
-
-
-@dataclass
-class Parameter(Markable, BaseVariableDeclaration):
-    type: Type
-    name: str
-    mutable = True
-
-
-@dataclass
-class Function(Markable):
-    cst: cst_.Function = dataclasses.field(repr=False, compare=False)
-    scope: Scope
-    native: bool
-    return_type: Type
-    name: str
-    type_parameters: typing.Optional[typing.List[TypeParameter]]
-    generic: bool
-    parameters: typing.List[Parameter]
-    body: typing.Optional[Expression]
 
 
 ##############################################################################

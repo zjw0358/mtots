@@ -43,27 +43,9 @@ class Import(FileLevelStatement):
 
 @typing.enforce
 @dataclass(frozen=True)
-class Field(Node):
-    type: TypeExpression
-    name: str
-
-
-@typing.enforce
-@dataclass(frozen=True)
 class TypeParameter(Node):
     name: str
     base: typing.Optional[TypeExpression]
-
-
-@typing.enforce
-@dataclass(frozen=True)
-class Class(FileLevelStatement):
-    native: bool
-    is_trait: bool
-    name: str
-    type_parameters: typing.Optional[typing.Tuple[TypeParameter, ...]]
-    base: typing.Optional[TypeExpression]
-    fields: typing.Tuple[Field, ...]
 
 
 @typing.enforce
@@ -82,6 +64,24 @@ class Function(FileLevelStatement):
     type_parameters: typing.Optional[typing.Tuple[TypeParameter, ...]]
     parameters: typing.Tuple[Parameter, ...]
     body: typing.Optional[ValueExpression]
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class Field(Node):
+    type: TypeExpression
+    name: str
+
+
+@typing.enforce
+@dataclass(frozen=True)
+class Class(FileLevelStatement):
+    native: bool
+    is_trait: bool
+    name: str
+    type_parameters: typing.Optional[typing.Tuple[TypeParameter, ...]]
+    base: typing.Optional[TypeExpression]
+    fields: typing.Tuple[Field, ...]
 
 
 @typing.enforce
