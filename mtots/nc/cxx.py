@@ -120,7 +120,7 @@ def _render_file_level_statement(on):
 
         if node.native:
             ctx.fwd += f'// (native class {node.name}) {c_class_name}'
-            for field in node.fields:
+            for field in node.own_fields:
                 ctx.fwd += f'//   {_declare(field.type, _cname(field.name))}'
             return
 
@@ -137,7 +137,7 @@ def _render_file_level_statement(on):
         ctx.fwd += f'{proto};'
         ctx.hdr += f'{proto} ' '{'
         with ctx.hdr.indent():
-            for field in node.fields:
+            for field in node.own_fields.values():
                 ctx.hdr += f'{_declare(field.type, _cname(field.name))};'
             ctx.hdr += f'virtual ~{c_class_name}()' '{}'
         ctx.hdr += '};'

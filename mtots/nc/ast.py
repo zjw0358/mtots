@@ -89,7 +89,8 @@ class Class(Type, Markable):
     base: typing.Optional[Type]
     type_parameters: typing.Optional[typing.List[TypeParameter]]
     generic: bool
-    fields: typing.Dict[str, Field]
+    own_fields: typing.Dict[str, Field]
+    all_fields: typing.Dict[str, Field]
 
     def usable_as(self, other_cls):
         if not isinstance(other_cls, Class):

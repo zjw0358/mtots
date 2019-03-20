@@ -45,6 +45,73 @@ def _collect_file_nodes(node: cst.File, seen: set):
                 yield import_path, imported_node
 
 
+def _get_reified_bindings(reified_type, scope):
+    class_ = reified_type.class_
+    bindings = {}
+    for param, arg in zip(
+            class_.type_parameters, reified_type.type_arguments):
+        bindings[param] = arg
+    return bindings
+
+
+@util.multimethod(1)
+def _apply_reified_bindings(on):
+
+    @on(ast.PrimitiveType)
+    def r(type_, bindings, scope):
+        return type_
+
+    @on(ast.Class)
+    def r(type_, bindings, scope):
+        return type_
+
+    @on(ast.ReifiedType)
+    def r(type_, bindings, scope):
+        return ast.ReifiedType(
+            mark=type_.mark,
+            class_=type_.class_,
+            type_arguments=[
+                _apply_reified_bindings(t, bindings, scope)
+                for t in type_.type_arguments
+            ],
+        )
+
+    @on(ast.TypeParameter)
+    def r(type_, bindings, scope):
+        if type_ in bindings:
+            return bindings[type_]
+        else:
+            with scope.push_mark(type_.mark):
+                raise scope.error(f'FUBAR: Unbound type variable: {type_}')
+
+
+@util.multimethod(1)
+def _get_all_fields(on):
+
+    @on(ast.Class)
+    def r(class_, scope):
+        return class_.all_fields
+
+    @on(ast.ReifiedType)
+    def r(type_, scope):
+        cclass_ = type_.class_
+        field_map = {}
+        bindings = _get_reified_bindings(type_, scope)
+        for key, raw_field in class_.all_fields.items():
+            field_type = _apply_reified_bindings(
+                raw_field.type,
+                bindings,
+                scope,
+            )
+            field = ast.Field(
+                mark=raw_field.mark,
+                type=field_type,
+                name=raw_field.name,
+            )
+            field_map[key] = raw_field
+        return field_map
+
+
 def resolve(node: cst.File):
     prelude_file_node = _find_and_parse('_prelude')
     seen = {'_prelude', '_main'}
@@ -153,7 +220,8 @@ def _resolve_global_names(on):
             base=None,
             type_parameters=None,
             generic=node.type_parameters is not None,
-            fields=None,
+            own_fields=None,
+            all_fields=None,
         )
         with scope.push_mark(node.mark):
             scope.root[full_name] = class_
@@ -198,7 +266,8 @@ def _resolve_types(on):
                 node.type_parameters,
                 cscope,
             )
-        class_.fields = _compute_fields(node.fields, cscope)
+        class_.own_fields = _compute_fields(node.fields, cscope)
+        class_.all_fields = _compute_all_fields(class_, cscope)
 
     @on(cst.Function)
     def r(node, outer_scope):
@@ -274,6 +343,17 @@ def _resolve_types(on):
                 type=_eval_type(cst_field.type, scope),
             )
             field_map[field.name] = field
+        return field_map
+
+    def _compute_all_fields(class_, scope):
+        field_map = {}
+        if class_.base is not None:
+            field_map.update(_get_all_fields(class_.base, scope))
+        for key, field in class_.own_fields.items():
+            if key in field_map:
+                with scope.push_mark(field_map[key].mark, field.mark):
+                    raise scope.error(f'Field {key} is already inherited')
+            field_map[key] = field
         return field_map
 
 
