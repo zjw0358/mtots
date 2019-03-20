@@ -646,10 +646,10 @@ def _eval_type(on):
                         f'Expected {param_len} type args but got '
                         f'{arg_len} args')
 
-        type_arguments = [
+        type_arguments = tuple(
             _eval_type(e, scope)
             for e in node.type_arguments
-        ]
+        )
 
         reified_type = ast.ReifiedType(
             mark=node.mark,

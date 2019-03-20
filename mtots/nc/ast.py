@@ -112,14 +112,41 @@ class Class(Type, Markable):
             self = self.base
         return self is other_cls
 
+    def __eq__(self, other):
+        return self is other
+
     def __str__(self):
         return f'(class {self.name})'
 
 
-@dataclass
-class ReifiedType(Type, Markable):
+@typing.enforce
+@dataclass(frozen=True)
+class ReifiedType(Type, base.Node):
     class_: Class
-    type_arguments: typing.List[Type]
+    type_arguments: typing.Tuple[Type, ...]
+
+    _base = None
+
+    def usable_as(self, other):
+        return (
+            isinstance(other, (ReifiedType, Class)) and
+            (self == other or
+                other.base is not None and self.usable_as(other.base))
+        )
+
+    @property
+    def base(self):
+        if self._base is None:
+            if self.class_.base is not None:
+                bindings = get_reified_bindings(
+                    type_parameters=self.class_.type_parameters,
+                    type_arguments=self.type_arguments,
+                )
+                self._base = apply_reified_bindings(
+                    type=self.class_.base,
+                    bindings=bindings,
+                )
+        return self._base
 
 
 @dataclass
