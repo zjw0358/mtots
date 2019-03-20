@@ -92,27 +92,6 @@ maybe_type_parameters = Any(
     All().valmap(None),
 )
 
-class_ = Struct(cst.Class, [
-    ['native', Any('native').optional()],
-    ['is_trait', Any(
-        All('class').valmap(False),
-        All('trait').valmap(True),
-    )],
-    ['name', Required('ID')],
-    ['type_parameters', maybe_type_parameters],
-    ['base', Any(
-        All('<', type_expression).getitem(1),
-        All().valmap(None),
-    )],
-    Required('{'),
-    ['fields', All(
-        All('NEWLINE').optional(),
-        field.join('NEWLINE').map(tuple),
-        All('NEWLINE').optional(),
-    ).getitem(1)],
-    Required('}'),
-])
-
 parameter = Struct(cst.Parameter, [
     ['type', type_expression],
     ['name', 'ID'],
@@ -135,6 +114,27 @@ function = Struct(cst.Function, [
         Peek('NEWLINE').valmap(None),
         All('=', value_expression).required().getitem(1),
     )],
+])
+
+class_ = Struct(cst.Class, [
+    ['native', Any('native').optional()],
+    ['is_trait', Any(
+        All('class').valmap(False),
+        All('trait').valmap(True),
+    )],
+    ['name', Required('ID')],
+    ['type_parameters', maybe_type_parameters],
+    ['base', Any(
+        All('<', type_expression).getitem(1),
+        All().valmap(None),
+    )],
+    Required('{'),
+    ['fields', All(
+        All('NEWLINE').optional(),
+        field.join('NEWLINE').map(tuple),
+        All('NEWLINE').optional(),
+    ).getitem(1)],
+    Required('}'),
 ])
 
 local_variable_declaration = Struct(cst.LocalVariableDeclaration, [
