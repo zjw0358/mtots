@@ -137,8 +137,18 @@ class Function(Markable):
 
 @typing.enforce
 @dataclass(frozen=True)
+class LocalVariableDeclaration(base.Node, BaseVariableDeclaration):
+    mutable: bool
+    type: Type
+    name: str
+    expression: Expression
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class Block(Expression):
-    expressions: typing.Tuple[Expression, ...]
+    expressions: typing.Tuple[typing.Union[
+        Expression, LocalVariableDeclaration], ...]
 
 
 @typing.enforce
@@ -151,15 +161,6 @@ class Int(Expression):
 @dataclass(frozen=True)
 class String(Expression):
     value: str
-
-
-@typing.enforce
-@dataclass(frozen=True)
-class LocalVariableDeclaration(Expression, BaseVariableDeclaration):
-    mutable: bool
-    type: Type
-    name: str
-    expression: Expression
 
 
 @typing.enforce
