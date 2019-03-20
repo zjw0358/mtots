@@ -4,6 +4,8 @@ from . import errors
 from . import lexer
 from . import parser
 from .scopes import Scope
+from .ast import apply_reified_bindings
+from .ast import get_reified_bindings
 from mtots import test
 from mtots import util
 import os
@@ -45,44 +47,6 @@ def _collect_file_nodes(node: cst.File, seen: set):
                 yield import_path, imported_node
 
 
-def _get_reified_bindings(*, type_parameters, type_arguments, scope):
-    bindings = {}
-    for param, arg in zip(type_parameters, type_arguments):
-        bindings[param] = arg
-    return bindings
-
-
-@util.multimethod(1)
-def _apply_reified_bindings(on):
-
-    @on(ast.PrimitiveType)
-    def r(type_, bindings, scope):
-        return type_
-
-    @on(ast.Class)
-    def r(type_, bindings, scope):
-        return type_
-
-    @on(ast.ReifiedType)
-    def r(type_, bindings, scope):
-        return ast.ReifiedType(
-            mark=type_.mark,
-            class_=type_.class_,
-            type_arguments=[
-                _apply_reified_bindings(t, bindings, scope)
-                for t in type_.type_arguments
-            ],
-        )
-
-    @on(ast.TypeParameter)
-    def r(type_, bindings, scope):
-        if type_ in bindings:
-            return bindings[type_]
-        else:
-            with scope.push_mark(type_.mark):
-                raise scope.error(f'FUBAR: Unbound type variable: {type_}')
-
-
 @util.multimethod(1)
 def _get_all_fields(on):
 
@@ -94,16 +58,14 @@ def _get_all_fields(on):
     def r(type_, scope):
         cclass_ = type_.class_
         field_map = {}
-        bindings = _get_reified_bindings(
+        bindings = get_reified_bindings(
             type_parameters=type_.class_.type_parameters,
             type_arguments=type_.type_arguments,
-            scope=scope,
         )
         for key, raw_field in class_.all_fields.items():
-            field_type = _apply_reified_bindings(
-                raw_field.type,
-                bindings,
-                scope,
+            field_type = apply_reified_bindings(
+                type=raw_field.type,
+                bindings=bindings,
             )
             field = ast.Field(
                 mark=raw_field.mark,
@@ -507,10 +469,9 @@ def _eval_expression(on):
                     _eval_type(t, scope) for t in node.type_arguments
                 )
 
-            generic_bindings = _get_reified_bindings(
+            generic_bindings = get_reified_bindings(
                 type_parameters=fn.type_parameters,
                 type_arguments=type_arguments,
-                scope=scope,
             )
         else:
             if node.type_arguments is None:
@@ -523,10 +484,9 @@ def _eval_expression(on):
         args = []
         for param, raw_arg in zip(fn.parameters, raw_args):
             if fn.generic:
-                param_type = _apply_reified_bindings(
-                    param.type,
-                    generic_bindings,
-                    scope,
+                param_type = apply_reified_bindings(
+                    type=param.type,
+                    bindings=generic_bindings,
                 )
             else:
                 param_type = param.type
@@ -539,10 +499,9 @@ def _eval_expression(on):
             args.append(arg)
 
         if fn.generic:
-            return_type = _apply_reified_bindings(
-                fn.return_type,
-                generic_bindings,
-                scope,
+            return_type = apply_reified_bindings(
+                type=fn.return_type,
+                bindings=generic_bindings,
             )
         else:
             return_type = fn.return_type

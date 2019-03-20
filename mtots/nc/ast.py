@@ -1,5 +1,6 @@
 from . import cst as cst_
 from .scopes import Scope
+from mtots import util
 from mtots.parser import base
 from mtots.util import dataclasses
 from mtots.util import typing
@@ -25,6 +26,17 @@ BOOL = PrimitiveType('bool')
 INT = PrimitiveType('int')
 DOUBLE = PrimitiveType('double')
 STRING = PrimitiveType('string')
+
+
+def get_reified_bindings(*, type_parameters, type_arguments):
+    bindings = {}
+    for param, arg in zip(type_parameters, type_arguments):
+        bindings[param] = arg
+    return bindings
+
+
+def apply_reified_bindings(*, type, bindings):
+    return _apply_reified_bindings(type, bindings)
 
 
 class BaseVariableDeclaration:
@@ -175,3 +187,33 @@ class FunctionCall(Expression):
     function: Function
     type_arguments: typing.Optional[typing.Tuple[Type, ...]]
     arguments: typing.Tuple[Expression, ...]
+
+
+@util.multimethod(1)
+def _apply_reified_bindings(on):
+
+    @on(PrimitiveType)
+    def r(type_, bindings):
+        return type_
+
+    @on(Class)
+    def r(type_, bindings):
+        return type_
+
+    @on(ReifiedType)
+    def r(type_, bindings):
+        return ReifiedType(
+            mark=type_.mark,
+            class_=type_.class_,
+            type_arguments=[
+                _apply_reified_bindings(t, bindings)
+                for t in type_.type_arguments
+            ],
+        )
+
+    @on(TypeParameter)
+    def r(type_, bindings):
+        if type_ in bindings:
+            return bindings[type_]
+        else:
+            raise TypeError(f'FUBAR: Unbound type variable: {type_}')
