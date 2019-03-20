@@ -47,35 +47,6 @@ def _collect_file_nodes(node: cst.File, seen: set):
                 yield import_path, imported_node
 
 
-@util.multimethod(1)
-def _get_all_fields(on):
-
-    @on(ast.Class)
-    def r(class_, scope):
-        return class_.all_fields
-
-    @on(ast.ReifiedType)
-    def r(type_, scope):
-        cclass_ = type_.class_
-        field_map = {}
-        bindings = get_reified_bindings(
-            type_parameters=type_.class_.type_parameters,
-            type_arguments=type_.type_arguments,
-        )
-        for key, raw_field in class_.all_fields.items():
-            field_type = apply_reified_bindings(
-                type=raw_field.type,
-                bindings=bindings,
-            )
-            field = ast.Field(
-                mark=raw_field.mark,
-                type=field_type,
-                name=raw_field.name,
-            )
-            field_map[key] = raw_field
-        return field_map
-
-
 def resolve(node: cst.File):
     prelude_file_node = _find_and_parse('_prelude')
     seen = {'_prelude', '_main'}
@@ -190,6 +161,8 @@ def _resolve_global_names(on):
             generic=node.type_parameters is not None,
             own_fields=None,
             all_fields=None,
+            own_methods=None,
+            all_methods=None,
         )
         with scope.push_mark(node.mark):
             scope.root[full_name] = class_
@@ -234,8 +207,18 @@ def _resolve_types(on):
                 node.type_parameters,
                 cscope,
             )
-        class_.own_fields = _compute_fields(node.fields, cscope)
+        class_.own_fields = _compute_own_fields(node.fields, cscope)
         class_.all_fields = _compute_all_fields(class_, cscope)
+        class_.own_methods = _compute_own_methods(
+            node.methods,
+            cscope,
+            class_is_native=class_.native,
+        )
+        class_.all_methods = _compute_all_methods(class_, cscope)
+        for members_map in [class_.all_fields, class_.all_methods]:
+            for key, member in members_map.items():
+                with cscope.push_mark(member.mark):
+                    cscope[key] = member
 
     @on(cst.Function)
     def r(node, outer_scope):
@@ -302,7 +285,7 @@ def _resolve_types(on):
                 scope[tparam.name] = tparam
         return type_parameters
 
-    def _compute_fields(cst_fields, scope):
+    def _compute_own_fields(cst_fields, scope):
         field_map = {}
         for cst_field in cst_fields:
             field = ast.Field(
@@ -316,13 +299,54 @@ def _resolve_types(on):
     def _compute_all_fields(class_, scope):
         field_map = {}
         if class_.base is not None:
-            field_map.update(_get_all_fields(class_.base, scope))
+            field_map.update(class_.base.all_fields)
         for key, field in class_.own_fields.items():
             if key in field_map:
                 with scope.push_mark(field_map[key].mark, field.mark):
                     raise scope.error(f'Field {key} is already inherited')
             field_map[key] = field
         return field_map
+
+    def _compute_own_methods(cst_methods, cscope, class_is_native):
+        method_map = {}
+        for cst_method in cst_methods:
+            mscope = Scope(cscope)
+            return_type = _eval_type(cst_method.return_type, cscope)
+            parameters = _compute_parameters(cst_method.parameters, mscope)
+            method = ast.Method(
+                cst=cst_method,
+                scope=mscope,
+                mark=cst_method.mark,
+                abstract=cst_method.abstract,
+                return_type=return_type,
+                name=cst_method.name,
+                parameters=parameters,
+                body=None,
+            )
+            method_map[method.name] = method
+        return method_map
+
+    def _compute_all_methods(class_, cscope):
+        method_map = {}
+        base_method_map = {}
+        if class_.base is not None:
+            base_method_map.update(class_.base.all_methods)
+            method_map.update(base_method_map)
+        for key, method in class_.own_methods.items():
+            if key in base_method_map:
+                base_method = base_method_map[key]
+                if not _method_signatures_match(base_method, method):
+                    with cscope.push_mark(method.mark, base_method.mark):
+                        raise cscope.error(
+                            f'Overriding method has mismatched signature')
+            method_map[key] = method
+        return method_map
+
+    def _method_signatures_match(method_a, method_b):
+        return (
+            method_a.return_type == method_b.return_type and
+            method_a.parameters == method_b.parameters
+        )
 
 
 @util.multimethod(1)
@@ -343,8 +367,31 @@ def _resolve_expressions(on):
 
     @on(cst.Class)
     def r(node, outer_scope):
-        # TODO: Once methods are needed, add code here
-        pass
+        class_ = outer_scope[node.name]
+        for method in class_.own_methods.values():
+            mscope = method.scope
+            if method.cst.body is not None:
+                method.body = _expect_type(
+                    type_=method.return_type,
+                    expr=_eval_expression(method.cst.body, mscope),
+                    scope=mscope,
+                )
+
+            if class_.native and method.body:
+                with mscope.push_mark(method.mark):
+                    raise mscope.error(
+                        f'Methods of native classes cannot have bodies')
+
+            if method.abstract and method.body:
+                with mscope.push_mark(method.mark):
+                    raise mscope.error(
+                        f'Abstract methods cannot have bodies')
+
+            if not method.abstract and not class_.native and not method.body:
+                with mscope.push_mark(method.mark):
+                    raise mscope.error(
+                        f'Normal method is missing body '
+                        f'(declare "abstract" to make metho abstract)')
 
     @on(cst.Function)
     def r(node, outer_scope):

@@ -111,6 +111,18 @@ class Function(Markable):
     body: typing.Optional[Expression]
 
 
+@typing.enforce
+@dataclass
+class Method(Markable):
+    cst: cst_.Method = dataclasses.field(repr=False, compare=False)
+    scope: Scope
+    abstract: bool
+    return_type: Type
+    name: str
+    parameters: typing.List[Parameter]
+    body: typing.Optional[Expression]
+
+
 @dataclass
 class Class(Type, Markable):
     cst: cst_.Class = dataclasses.field(repr=False, compare=False)
@@ -123,6 +135,8 @@ class Class(Type, Markable):
     generic: bool
     own_fields: typing.Dict[str, Field]
     all_fields: typing.Dict[str, Field]
+    own_methods: typing.Dict[str, Method]
+    all_methods: typing.Dict[str, Method]
 
     def usable_as(self, other_cls):
         if not isinstance(other_cls, Class):
@@ -135,6 +149,9 @@ class Class(Type, Markable):
     def __eq__(self, other):
         return self is other
 
+    def __hash__(self):
+        return hash(self)
+
     def __str__(self):
         return f'(class {self.name})'
 
@@ -146,6 +163,8 @@ class ReifiedType(Type, base.Node):
     type_arguments: typing.Tuple[Type, ...]
 
     _base = None
+    _bindings = None
+    _all_fields = None
 
     def usable_as(self, other):
         return (
@@ -168,6 +187,66 @@ class ReifiedType(Type, base.Node):
                 )
         return self._base
 
+    @property
+    def bindings(self):
+        if self._bindings is None:
+            self._bindings = get_reified_bindings(
+                type_parameters=type_.class_.type_parameters,
+                type_arguments=type_.type_arguments,
+            )
+        return self._bindings
+
+    @property
+    def all_fields(self):
+        if self._all_fields is None:
+            field_map = {}
+            bindings = self.bindings
+            for key, raw_field in class_.all_fields.items():
+                field_type = apply_reified_bindings(
+                    type=raw_field.type,
+                    bindings=bindings,
+                )
+                field = Field(
+                    mark=raw_field.mark,
+                    type=field_type,
+                    name=raw_field.name,
+                )
+                field_map[key] = raw_field
+            self._all_fields = field_map
+        return self._all_fields
+
+    @property
+    def all_methods(self):
+        if self._all_methods is None:
+            methods_map = {}
+            bindings = self.bindings
+            for key, raw_method in class_.all_methods.items():
+                parameters = []
+                for raw_parameter in raw_method.parameters:
+                    parameters.append(Parameter(
+                        mark=raw_parameter.mark,
+                        type=apply_reified_bindings(
+                            type=raw_parameter.type,
+                            bindings=bindings,
+                        ),
+                        name=raw_parameter.name,
+                    ))
+                method = Method(
+                    mark=raw_method.mark,
+                    cst=raw_method.cst,
+                    scope=raw_method.scope,
+                    abstract=raw_method.abstract,
+                    return_type=apply_reified_bindings(
+                        type=raw_method.type,
+                        bindings=bindings,
+                    ),
+                    name=raw_method.name,
+                    parameters=parameters,
+                    body=None,
+                )
+                methods_map[method.name] = method
+            self._all_methods = methods_map
+        return self._all_methods
 
 ##############################################################################
 # Expressions

@@ -1,6 +1,8 @@
 native trait Object {}
 native class Try[T] {}
-native class List[T] {}
+native class List[T] {
+  int size()
+}
 native Try[T] YES[T](T t)
 native Try[T] NO[T](string message)
 native string str[T](T x)

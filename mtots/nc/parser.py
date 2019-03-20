@@ -68,11 +68,6 @@ inline = Struct(cst.Inline, [
     ['text', Required('STR')],
 ])
 
-field = Struct(cst.Field, [
-    ['type', type_expression],
-    ['name', 'ID'],
-])
-
 type_parameter = Struct(cst.TypeParameter, [
     ['name', 'ID'],
     ['base', Any(
@@ -116,6 +111,22 @@ function = Struct(cst.Function, [
     )],
 ])
 
+field = Struct(cst.Field, [
+    ['type', type_expression],
+    ['name', 'ID'],
+])
+
+method = Struct(cst.Method, [
+    ['abstract', Any('abstract').optional()],
+    ['return_type', type_expression],
+    ['name', Required('ID')],
+    ['parameters', parameters],
+    ['body', Any(
+        Peek('NEWLINE').valmap(None),
+        All('=', value_expression).required().getitem(1),
+    )],
+])
+
 class_ = Struct(cst.Class, [
     ['native', Any('native').optional()],
     ['is_trait', Any(
@@ -129,9 +140,9 @@ class_ = Struct(cst.Class, [
         All().valmap(None),
     )],
     Required('{'),
-    ['fields', All(
+    ['fields_and_methods', All(
         All('NEWLINE').optional(),
-        field.join('NEWLINE').map(tuple),
+        Any(method, field).join('NEWLINE').map(tuple),
         All('NEWLINE').optional(),
     ).getitem(1)],
     Required('}'),

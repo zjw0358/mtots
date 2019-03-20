@@ -75,13 +75,33 @@ class Field(Node):
 
 @typing.enforce
 @dataclass(frozen=True)
+class Method(FileLevelStatement):
+    abstract: bool
+    return_type: TypeExpression
+    name: str
+    parameters: typing.Tuple[Parameter, ...]
+    body: typing.Optional[ValueExpression]
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class Class(FileLevelStatement):
     native: bool
     is_trait: bool
     name: str
     type_parameters: typing.Optional[typing.Tuple[TypeParameter, ...]]
     base: typing.Optional[TypeExpression]
-    fields: typing.Tuple[Field, ...]
+    fields_and_methods: typing.Tuple[typing.Union[Field, Method], ...]
+
+    @property
+    def fields(self):
+        return tuple(
+            m for m in self.fields_and_methods if isinstance(m, Field))
+
+    @property
+    def methods(self):
+        return tuple(
+            m for m in self.fields_and_methods if isinstance(m, Method))
 
 
 @typing.enforce

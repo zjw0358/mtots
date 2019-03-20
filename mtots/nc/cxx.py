@@ -140,7 +140,18 @@ def _render_file_level_statement(on):
             for field in node.own_fields.values():
                 ctx.hdr += f'{_declare(field.type, _cname(field.name))};'
             ctx.hdr += f'virtual ~{c_class_name}()' '{}'
+            for method in node.own_methods.values():
+                ctx.hdr += f'{_declare(method, prefix="")};'
         ctx.hdr += '};'
+
+        for method in node.own_methods.values():
+            if method.body is not None:
+                proto = _declare(method, prefix=f'{c_class_name}::')
+                ctx.src += f'{proto} ' '{'
+                with ctx.src.indent():
+                    expr = _render_expression(method.body, 1)
+                    ctx.src += f'return {expr};'
+                ctx.src += '}'
 
     @on(ast.Function)
     def r(node, ctx):
@@ -177,6 +188,13 @@ def _declare(on):
         parameters = ', '.join(_declare(param) for param in node.parameters)
         dtor = f'{c_function_name}({parameters})'
         return f'{generic}{_declare(node.return_type, dtor)}'
+
+    @on(ast.Method)
+    def r(node, *, prefix):
+        c_method_name = _cname(node.name)
+        parameters = ', '.join(_declare(param) for param in node.parameters)
+        dtor = f'{prefix}{c_method_name}({parameters})'
+        return f'{_declare(node.return_type, dtor)}'
 
     @on(ast.Parameter)
     def r(node):

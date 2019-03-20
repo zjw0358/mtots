@@ -5,11 +5,13 @@ from io import read as fread
 
 trait A {
   int x
+  string foo() = 'A.foo method'
 }
 
 trait B < A {
   string y
   string z
+  string foo() = 'B.foo method'
 }
 
 class C < B {}
