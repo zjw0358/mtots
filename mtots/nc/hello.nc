@@ -1,7 +1,5 @@
 from io import File
 from io import open as fopen
-from io import close as fclose
-from io import read as fread
 
 trait A {
   int x
@@ -24,7 +22,7 @@ void main() = {
 
   final file = fopen("setup.py", "r")
   print("Hello world!")
-  final data = fread(file)
+  final data = file.read()
   print(data)
-  fclose(file)
+  file.close()
 }
