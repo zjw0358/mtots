@@ -490,6 +490,16 @@ def _eval_expression(on):
         if not isinstance(type_, (ast.Class, ast.ReifiedType)):
             with scope.push_mark(node.mark):
                 raise scope.error(f'You can only new Class types')
+
+        if isinstance(type_, ast.ReifiedType):
+            class_ = type_.class_
+        else:
+            class_ = type_
+
+        if class_.inheritable:
+            with scope.push_mark(node.mark, class_.mark):
+                raise scope.error(f'Traits cannot be instantiated')
+
         return ast.New(
             mark=node.mark,
             type=type_,

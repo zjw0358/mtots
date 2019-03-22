@@ -14,6 +14,8 @@ trait B < A {
 
 class C < B {}
 
+class AC < A {}
+
 class D[T] {
   T t
 }
@@ -21,7 +23,7 @@ class D[T] {
 void main() = {
   final c = new(C)
   print(c.foo())
-  final a = new(A)
+  final a = new(AC)
   print(a.foo())
 
   final d = new(D[string])
