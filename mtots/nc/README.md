@@ -121,3 +121,16 @@ semantically the compilation stages should look like this:
   features (e.g. C/C++ or Java), expressions would have to be unrolled
   into statements and all variables noted carefully so that they could
   be implemented with classes. Would be quite a bit of work.
+
+* Formatting through unparsing the CST
+  Formatting nc code can be really simple by simply parsing into CST
+  then unparsing the CST back into the code.
+  This is the reason why comments are part of the grammar and not
+  simply discarded -- this way the places where comments can appear
+  are actually restricted.
+  The only other thing needed on the parser side is keeping track of
+  repeats of NEWLINEs, to potentially preserve empty line formatting.
+  However, this shouldn't restrict the space of acceptable grammars,
+  so fixing this isn't urgent (the comments issue was urgent, because
+  it could potentially create many uses of comments that would not
+  be acceptable for the parser simple).
