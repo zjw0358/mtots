@@ -21,8 +21,17 @@ class ValueExpression(Node):
 
 @typing.enforce
 @dataclass(frozen=True)
+class LineComment(Node):
+    text: str
+
+
+@typing.enforce
+@dataclass(frozen=True)
 class File(Node):
-    statements: typing.Tuple[FileLevelStatement, ...]
+    statements: typing.Tuple[typing.Union[
+        FileLevelStatement,
+        LineComment,
+    ], ...]
 
 
 @typing.enforce
@@ -91,7 +100,11 @@ class Class(FileLevelStatement):
     name: str
     type_parameters: typing.Optional[typing.Tuple[TypeParameter, ...]]
     base: typing.Optional[TypeExpression]
-    fields_and_methods: typing.Tuple[typing.Union[Field, Method], ...]
+    fields_and_methods: typing.Tuple[typing.Union[
+        Field,
+        Method,
+        LineComment,
+    ], ...]
 
     @property
     def fields(self):
@@ -158,8 +171,11 @@ class LocalVariableDeclaration(Node):
 @typing.enforce
 @dataclass(frozen=True)
 class Block(ValueExpression):
-    expressions: typing.Tuple[
-        typing.Union[ValueExpression, LocalVariableDeclaration], ...]
+    expressions: typing.Tuple[typing.Union[
+        ValueExpression,
+        LocalVariableDeclaration,
+        LineComment,
+    ], ...]
 
 
 @typing.enforce

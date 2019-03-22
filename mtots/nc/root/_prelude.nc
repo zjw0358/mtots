@@ -1,3 +1,5 @@
+# _prelude is implicitly included in every program
+
 native trait Object {}
 native class Try[T] {}
 native class List[T] {

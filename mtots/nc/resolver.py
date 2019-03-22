@@ -101,7 +101,8 @@ def _resolve_global_names(on):
         assert scope.parent is not None
         assert scope.parent.parent is None
         for stmt in node.statements:
-            _resolve_global_names(stmt, scope)
+            if not isinstance(stmt, cst.LineComment):
+                _resolve_global_names(stmt, scope)
 
     @on(cst.Import)
     def r(node, scope):
@@ -186,7 +187,8 @@ def _resolve_types(on):
     @on(cst.File)
     def r(node, scope):
         for stmt in node.statements:
-            _resolve_types(stmt, scope)
+            if not isinstance(stmt, cst.LineComment):
+                _resolve_types(stmt, scope)
 
     @on(cst.Import)
     def r(node, scope):
@@ -355,7 +357,8 @@ def _resolve_expressions(on):
     @on(cst.File)
     def r(node, scope):
         for stmt in node.statements:
-            _resolve_expressions(stmt, scope)
+            if not isinstance(stmt, cst.LineComment):
+                _resolve_expressions(stmt, scope)
 
     @on(cst.Import)
     def r(node, scope):
@@ -449,7 +452,9 @@ def _eval_expression(on):
     def r(node, outer_scope):
         block_scope = Scope(outer_scope)
         exprs = tuple(
-            _eval_expression(e, block_scope) for e in node.expressions
+            _eval_expression(e, block_scope)
+            for e in node.expressions
+            if not isinstance(e, cst.LineComment)
         )
         if exprs:
             if isinstance(exprs[-1], ast.LocalVariableDeclaration):

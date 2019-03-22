@@ -65,6 +65,8 @@ NCX_PTR<NCXX_ioZDFile> NCXX_ioZDopen(NCX_STRING path, NCX_STRING mode) {
 native class File {
   void close()
   bool eof()
-  string read()  # TODO: return Try[string] instead
+
+  # TODO: return Try[string] instead
+  string read()
 }
 native File open(string path, string mode)

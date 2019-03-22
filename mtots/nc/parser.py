@@ -16,6 +16,10 @@ from mtots.parser.combinator import Token
 def Struct(*args, **kwargs):
     return combinator.Struct(*args, include_mark=True, **kwargs)
 
+line_comment = Struct(cst.LineComment, [
+    ['text', 'COMMENT'],
+])
+
 type_expression = Forward(lambda: Any(
     Struct(cst.ReifiedType, [
         ['name', 'ID'],
@@ -36,6 +40,7 @@ value_expression = Forward(lambda: postfix)
 
 file_ = Forward(lambda: Struct(cst.File, [
     ['statements', Any(
+        All(line_comment),
         All(import_),
         All(inline),
         All(class_),
@@ -142,7 +147,11 @@ class_ = Struct(cst.Class, [
     Required('{'),
     ['fields_and_methods', All(
         All('NEWLINE').optional(),
-        Any(method, field).join('NEWLINE').map(tuple),
+        Any(
+            method,
+            field,
+            line_comment,
+        ).join('NEWLINE').map(tuple),
         All('NEWLINE').optional(),
     ).getitem(1)],
     Required('}'),
@@ -166,6 +175,7 @@ atom = Forward(lambda: Any(
         ['expressions', Any(
             local_variable_declaration,
             value_expression,
+            line_comment,
         ).join('NEWLINE').map(tuple)],
         Any('NEWLINE').optional(),
         Required('}'),

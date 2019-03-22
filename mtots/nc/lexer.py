@@ -92,7 +92,7 @@ def lexer(builder):
 
     @builder.add(r'#.*?(?=\r|\n|\$)')
     def line_comments(m, mark):
-        return ()
+        return [base.Token(mark, 'COMMENT', m.group())]
 
     @builder.add(r'(?:\d*\.\d+|\d+\.)')
     def float_literal(m, mark):
