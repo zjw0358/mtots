@@ -17,3 +17,6 @@ https://pip.pypa.io/en/stable/user_guide/
 
 * panda3d
 
+## TODO
+
+* Implement a weight balanced tree backed by immutable nodes in util.
